@@ -4089,8 +4089,7 @@ find_comp_when_fuzzy(void)
     int		is_backward = compl_shows_dir_backward();
     compl_T	*comp = NULL;
 
-    if (compl_match_array == NULL ||
-	    (is_forward && compl_selected_item == compl_match_arraysize - 1)
+    if ((is_forward && compl_selected_item == compl_match_arraysize - 1)
 	    || (is_backward && compl_selected_item == 0))
 	return compl_first_match;
 
@@ -4143,8 +4142,8 @@ find_next_completion_match(
     {
 	if (compl_shows_dir_forward() && compl_shown_match->cp_next != NULL)
 	{
-	    compl_shown_match = !compl_fuzzy_match ? compl_shown_match->cp_next
-						: find_comp_when_fuzzy();
+	    compl_shown_match = compl_fuzzy_match && compl_match_array != NULL
+			? find_comp_when_fuzzy() : compl_shown_match->cp_next;
 	    found_end = (compl_first_match != NULL
 		    && (is_first_match(compl_shown_match->cp_next)
 			|| is_first_match(compl_shown_match)));
@@ -4153,8 +4152,8 @@ find_next_completion_match(
 		&& compl_shown_match->cp_prev != NULL)
 	{
 	    found_end = is_first_match(compl_shown_match);
-	    compl_shown_match = !compl_fuzzy_match ? compl_shown_match->cp_prev
-						   : find_comp_when_fuzzy();
+	    compl_shown_match = compl_fuzzy_match && compl_match_array != NULL
+			? find_comp_when_fuzzy() : compl_shown_match->cp_prev;
 	    found_end |= is_first_match(compl_shown_match);
 	}
 	else
@@ -4497,6 +4496,12 @@ ins_compl_use_match(int c)
     static int
 get_normal_compl_info(char_u *line, int startcol, colnr_T curs_col)
 {
+    int		compl_fuzzy_match = (get_cot_flags() & COT_FUZZY) != 0;
+    int		i;
+    int		char_len;
+    size_t	fuzzy_len;
+    char_u	*fuzzy_pattern;
+
     if ((compl_cont_status & CONT_SOL) || ctrl_x_mode_path_defines())
     {
 	if (!compl_status_adding())
@@ -4606,10 +4611,36 @@ get_normal_compl_info(char_u *line, int startcol, colnr_T curs_col)
 	    STRCPY((char *)compl_pattern, "\\<");
 	    (void)quote_meta(compl_pattern + 2, line + compl_col,
 		    compl_length);
-	}
+        }
+
     }
 
     compl_patternlen = STRLEN(compl_pattern);
+
+    if (compl_fuzzy_match)
+    {
+	// Adjust size to avoid buffer overflow
+	fuzzy_len = (size_t)compl_length * 4 + 5;
+	// Allocate enough space
+	fuzzy_pattern = alloc(fuzzy_len);
+	// Use 'very magic' mode for simpler syntax
+	STRCPY(fuzzy_pattern, "\\v");
+	for (i = 2; i < compl_length + 2; )
+	{
+	    STRCAT(fuzzy_pattern, "\\k*");
+	    // Get length of current multi-byte character
+	    char_len = mb_ptr2len(compl_pattern + i);
+	    // Concatenate the character
+	    STRNCAT(fuzzy_pattern, compl_pattern + i, char_len);
+	    // Move to the next character
+	    i += char_len;
+	}
+	// Append \\k* at the end to match any characters after the pattern
+	STRCAT(fuzzy_pattern, "\\k*");
+	vim_free(compl_pattern);
+	compl_pattern = fuzzy_pattern;
+	compl_patternlen = STRLEN(compl_pattern);
+    }
 
     return OK;
 }
