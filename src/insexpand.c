@@ -4625,18 +4625,19 @@ get_normal_compl_info(char_u *line, int startcol, colnr_T curs_col)
 	fuzzy_pattern = alloc(fuzzy_len);
 	// Use 'very magic' mode for simpler syntax
 	STRCPY(fuzzy_pattern, "\\v");
-	for (i = 2; i < compl_length + 2; )
+	i = 2; // Start from 2 to skip "\\v"
+	while (i < compl_length + 2)
 	{
-	    STRCAT(fuzzy_pattern, "\\k*");
+	    STRNCAT(fuzzy_pattern, "\\k*", fuzzy_len - STRLEN(fuzzy_pattern) - 1);
 	    // Get length of current multi-byte character
 	    char_len = mb_ptr2len(compl_pattern + i);
-	    // Concatenate the character
+	    // Concatenate the character safely
 	    STRNCAT(fuzzy_pattern, compl_pattern + i, char_len);
 	    // Move to the next character
 	    i += char_len;
 	}
-	// Append \\k* at the end to match any characters after the pattern
-	STRCAT(fuzzy_pattern, "\\k*");
+	// Append "\\k*" at the end to match any characters after the pattern
+	STRNCAT(fuzzy_pattern, "\\k*", fuzzy_len - STRLEN(fuzzy_pattern) - 1);
 	vim_free(compl_pattern);
 	compl_pattern = fuzzy_pattern;
 	compl_patternlen = STRLEN(compl_pattern);
