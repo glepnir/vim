@@ -2578,6 +2578,9 @@ func Test_complete_fuzzy_match()
   call setline(1, ['hello help hero h'])
   exe "normal A\<C-N>"
   call assert_equal('hello help hero hello', getline('.'))
+  set completeopt+=noinsert
+  exe "normal Shello help hero h\<C-N>"
+  call assert_equal('hello help hero h', getline('.'))
 
   " clean up
   set omnifunc=
