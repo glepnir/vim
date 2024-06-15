@@ -2573,6 +2573,12 @@ func Test_complete_fuzzy_match()
   call feedkeys("S\<C-x>\<C-o>fb\<C-n>", 'tx')
   call assert_equal('fooBaz', g:word)
 
+  " avoid break default completion behavior
+  set completeopt=fuzzy,menu
+  call setline(1, ['hello help hero h'])
+  exe "normal A\<C-N>"
+  call assert_equal('hello help hero hello', getline('.'))
+
   " clean up
   set omnifunc=
   bw!
