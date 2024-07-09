@@ -41,6 +41,7 @@ void f_matchfuzzy(typval_T *argvars, typval_T *rettv);
 void f_matchfuzzypos(typval_T *argvars, typval_T *rettv);
 int fuzzy_match_str(char_u *str, char_u *pat);
 garray_T *fuzzy_match_str_with_pos(char_u *str, char_u *pat);
+int fuzzy_match_str_in_line(char_u **ptr, char_u *pat, int *len, pos_T *cur_match_pos);
 void fuzmatch_str_free(fuzmatch_str_T *fuzmatch, int count);
 int fuzzymatches_to_strmatches(fuzmatch_str_T *fuzmatch, char_u ***matches, int count, int funcsort);
 /* vim: set ft=c : */

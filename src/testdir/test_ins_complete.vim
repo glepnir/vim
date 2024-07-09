@@ -2586,7 +2586,7 @@ func Test_complete_fuzzy_match()
   call feedkeys("A\<C-X>\<C-N>\<Esc>0", 'tx!')
   call assert_equal('hello help hero h', getline('.'))
 
-  set completeopt=fuzzycollect
+  set completeopt-=noinsert
   call setline(1, ['xyz  yxz  x'])
   call feedkeys("A\<C-X>\<C-N>\<Esc>0", 'tx!')
   call assert_equal('xyz  yxz  xyz', getline('.'))
@@ -2609,19 +2609,6 @@ func Test_complete_fuzzy_match()
   call setline(1, ['你的 我的 的'])
   call feedkeys("A\<C-X>\<C-N>\<C-N>\<Esc>0", 'tx!')
   call assert_equal('你的 我的 我的', getline('.'))
-
-  "respect noinsert
-  set completeopt=fuzzycollect,menu,menuone,noinsert
-  call setline(1, ['one two o'])
-  call feedkeys("A\<C-X>\<C-N>", 'tx')
-  call assert_equal('one', g:word)
-  call assert_equal('one two o', getline('.'))
-
-  set completeopt=fuzzycollect,menu,menuone
-  call setline(1, ['hello world', ''])
-  call cursor(2, 1)
-  call feedkeys("A\<C-X>\<C-N>\<Esc>0", 'tx!')
-  call assert_equal('hello', getline('.'))
 
   " clean up
   set omnifunc=

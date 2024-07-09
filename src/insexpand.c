@@ -3326,6 +3326,7 @@ process_next_cpt_value(
 {
     int	    compl_type = -1;
     int	    status = INS_COMPL_CPT_OK;
+    int	    compl_fuzzy = (get_cot_flags() & COT_FUZZY) != 0;
 
     st->found_all = FALSE;
 
@@ -3338,7 +3339,7 @@ process_next_cpt_value(
 	st->first_match_pos = *start_match_pos;
 	// Move the cursor back one character so that ^N can match the
 	// word immediately after the cursor.
-	if (ctrl_x_mode_normal() && dec(&st->first_match_pos) < 0)
+	if (ctrl_x_mode_normal() && (!compl_fuzzy && dec(&st->first_match_pos) < 0))
 	{
 	    // Move the cursor to after the last character in the
 	    // buffer, so that word at start of buffer is found
@@ -3687,8 +3688,11 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     int		save_p_scs;
     int		save_p_ws;
     int		looped_around = FALSE;
-    char_u	*ptr;
+    char_u	*ptr = NULL;
     int		len;
+    int		in_fuzzy = (get_cot_flags() & COT_FUZZY) != 0 && compl_length > 0;
+    char_u	*leader = ins_compl_leader();
+    pos_T	current_pos;
 
     // If 'infercase' is set, don't use 'smartcase' here
     save_p_scs = p_scs;
@@ -3716,6 +3720,66 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 	if (ctrl_x_mode_line_or_eval() || (compl_cont_status & CONT_SOL))
 	    found_new_match = search_for_exact_line(st->ins_buf,
 			    st->cur_match_pos, compl_direction, compl_pattern);
+	else if (in_fuzzy)
+	{
+	    current_pos = *st->cur_match_pos;
+	    do {
+		pos_T circly_end = st->ins_buf == curbuf ? *start_pos :
+		    (pos_T){.lnum = st->ins_buf->b_ml.ml_line_count, 0, 0};
+		
+		// Check if looped around and back to start position
+		if (looped_around && EQUAL_POS(current_pos, circly_end))
+		    break;
+
+		// Get the current line buffer
+		if (current_pos.lnum >= 1
+		    && current_pos.lnum <= st->ins_buf->b_ml.ml_line_count
+		    && !(current_pos.col - 1 == ml_get_buf_len(st->ins_buf, current_pos.lnum))) {
+		    ptr = ml_get_buf(st->ins_buf, current_pos.lnum, FALSE);
+		    if (ptr != NULL)
+			ptr += current_pos.col;
+		}
+
+		// If ptr is null or end of line is reached, move to next line or previous line based on direction
+		if (ptr == NULL || *ptr == NUL) {
+		    if (compl_dir_forward()) {
+			if (++current_pos.lnum > st->ins_buf->b_ml.ml_line_count) {
+			    current_pos.lnum = 1;
+			    looped_around = TRUE;
+			}
+		    } else {
+			if (--current_pos.lnum < 1) {
+			    current_pos.lnum = st->ins_buf->b_ml.ml_line_count;
+			    looped_around = TRUE;
+			}
+		    }
+		    current_pos.col = 0;
+		    continue;
+		}
+
+		// Try to find a fuzzy match in the current line starting from current position
+		found_new_match = fuzzy_match_str_in_line(&ptr, leader, &len, &current_pos);
+		if (found_new_match) {
+		    st->cur_match_pos->lnum = current_pos.lnum;
+		    st->cur_match_pos->col = current_pos.col;
+		    break;
+		}
+
+		// If no match is found, move to the next line or previous line based on direction
+		current_pos.col = 0;
+		if (compl_dir_forward()) {
+		    if (++current_pos.lnum > st->ins_buf->b_ml.ml_line_count) {
+			current_pos.lnum = 1;
+			looped_around = TRUE;
+		    }
+		} else {
+		    if (--current_pos.lnum < 1) {
+			current_pos.lnum = st->ins_buf->b_ml.ml_line_count;
+			looped_around = TRUE;
+		    }
+		}
+	    } while (TRUE);
+	}
 	else
 	    found_new_match = searchit(NULL, st->ins_buf, st->cur_match_pos,
 				NULL, compl_direction, compl_pattern, compl_patternlen,
@@ -3764,8 +3828,9 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 		&& start_pos->col  == st->cur_match_pos->col)
 	    continue;
 
-	ptr = ins_compl_get_next_word_or_line(st->ins_buf, st->cur_match_pos,
-							   &len, &cont_s_ipos);
+	if (!in_fuzzy)
+	    ptr = ins_compl_get_next_word_or_line(st->ins_buf, st->cur_match_pos,
+							       &len, &cont_s_ipos);
 	if (ptr == NULL)
 	    continue;
 
@@ -4512,11 +4577,6 @@ ins_compl_use_match(int c)
     static int
 get_normal_compl_info(char_u *line, int startcol, colnr_T curs_col)
 {
-    int		i;
-    int		start;
-    int		char_len;
-    garray_T	fuzzy_ga;
-
     if ((compl_cont_status & CONT_SOL) || ctrl_x_mode_path_defines())
     {
 	if (!compl_status_adding())
@@ -4630,42 +4690,6 @@ get_normal_compl_info(char_u *line, int startcol, colnr_T curs_col)
     }
 
     compl_patternlen = STRLEN(compl_pattern);
-
-    if ((get_cot_flags() & COT_FUZZYCOLLECT) != 0 && compl_length > 0)
-    {
-	// Initialize the growable array
-	ga_init2(&fuzzy_ga, sizeof(char), 100);
-	ga_concat(&fuzzy_ga, (char_u *)"\\v\\S*");
-	// Adjust the start index based on different compl_pattern generation
-	if (STRNCMP(compl_pattern, "\\<\\k\\k", 6) == 0)
-	    i = 6; // Skip "\\<\\k\\k"
-	else if (STRNCMP(compl_pattern, "\\<", 2) == 0)
-	    i = 2; // Skip "\\<"
-	else
-	    i = 0; // No special prefix
-	start = i;
-	if (has_mbyte)
-	{
-	    while (i < compl_length + start)
-	    {
-		// Get length of current multi-byte character
-		char_len = mb_ptr2len(compl_pattern + i);
-		// Move to the next character
-		i += char_len;
-	    }
-	    // Concatenate the characters safely
-	    ga_concat_len(&fuzzy_ga, compl_pattern + start, i - start);
-	}
-	else
-	    ga_concat_len(&fuzzy_ga, compl_pattern + start, compl_length);
-	// Append "\\S*" at the end to match any characters after the pattern
-	ga_concat(&fuzzy_ga, (char_u *)"\\S*");
-	vim_free(compl_pattern);
-	ga_append(&fuzzy_ga, NUL); // Null-terminate the string
-	compl_pattern = fuzzy_ga.ga_data;
-	compl_patternlen = STRLEN(compl_pattern);
-    }
-
     return OK;
 }
 

@@ -5140,6 +5140,61 @@ fuzzy_match_str_with_pos(char_u *str UNUSED, char_u *pat UNUSED)
 }
 
 /*
+ * This function searches for a fuzzy match of the pattern `pat` within the
+ * line pointed to by `*ptr`. It splits the line into words, performs fuzzy
+ * matching on each word, and returns the length and position of the first
+ * matched word.
+ */
+    int
+fuzzy_match_str_in_line(char_u **ptr, char_u *pat, int *len, pos_T *current_pos)
+{
+    char_u	*str = *ptr;
+    char_u	*strBegin = str;
+    char_u	*end = NULL;
+    char_u	*start = NULL;
+    int		found = FALSE;
+    char_u	*word = NULL;
+
+    if (str == NULL || pat == NULL)
+        return found;
+
+    while (*str != NUL) 
+    {
+	// Skip non-word characters
+	start = find_word_start(str);
+	if (*start == NUL)
+	    break;
+	end = find_word_end(start);
+
+	// Extract the word from start to end
+	word = vim_strnsave(start, (int)(end - start));
+	if (word == NULL)
+	    break;
+
+	// Perform fuzzy match
+	int result = fuzzy_match_str(word, pat);
+	vim_free(word); // Free the allocated word after use
+
+	if (result > 0)
+	{
+	    *len = (int)(end - start);
+	    current_pos->col += (int)(end - strBegin);
+	    found = TRUE;
+	    *ptr = start;
+	    break;
+	}
+
+	// Move to the end of the current word for the next iteration
+	str = end;
+	// Ensure we continue searching after the current word
+	while (*str != NUL && !vim_iswordp(str))
+	    MB_PTR_ADV(str);
+    }
+
+    return found;
+}
+
+/*
  * Free an array of fuzzy string matches "fuzmatch[count]".
  */
     void
