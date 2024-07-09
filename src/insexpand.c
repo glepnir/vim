@@ -3687,8 +3687,10 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     int		save_p_scs;
     int		save_p_ws;
     int		looped_around = FALSE;
-    char_u	*ptr;
-    int		len;
+    char_u	*ptr = NULL;
+    int		len = 0;
+    int		in_fuzzy = (get_cot_flags() & COT_FUZZY) != 0 && compl_length > 0;
+    char_u	*leader = ins_compl_leader();
 
     // If 'infercase' is set, don't use 'smartcase' here
     save_p_scs = p_scs;
@@ -3713,9 +3715,13 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 
 	// ctrl_x_mode_line_or_eval() || word-wise search that
 	// has added a word that was at the beginning of the line
-	if (ctrl_x_mode_line_or_eval() || (compl_cont_status & CONT_SOL))
+	if ( (ctrl_x_mode_whole_line() && !in_fuzzy) || ctrl_x_mode_eval() || (compl_cont_status & CONT_SOL))
 	    found_new_match = search_for_exact_line(st->ins_buf,
 			    st->cur_match_pos, compl_direction, compl_pattern);
+	else if (in_fuzzy)
+	     found_new_match = search_for_fuzzy_match(st->ins_buf,
+			    st->cur_match_pos, leader, compl_direction,
+			    start_pos, &len, &ptr, ctrl_x_mode_whole_line());
 	else
 	    found_new_match = searchit(NULL, st->ins_buf, st->cur_match_pos,
 				NULL, compl_direction, compl_pattern, compl_patternlen,
@@ -3764,8 +3770,9 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 		&& start_pos->col  == st->cur_match_pos->col)
 	    continue;
 
-	ptr = ins_compl_get_next_word_or_line(st->ins_buf, st->cur_match_pos,
-							   &len, &cont_s_ipos);
+	if (len == 0)
+	    ptr = ins_compl_get_next_word_or_line(st->ins_buf, st->cur_match_pos,
+							       &len, &cont_s_ipos);
 	if (ptr == NULL)
 	    continue;
 
