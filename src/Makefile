@@ -587,7 +587,7 @@ CClink = $(CC)
 # When using -g with some older versions of Linux you might get a
 # statically linked executable.
 # When not defined, configure will try to use -O2 for gcc and -O for others.
-#CFLAGS = -g
+CFLAGS = -g
 #CFLAGS = -O
 
 # Optimization limits - depends on the compiler.  Automatic check in configure
@@ -693,12 +693,12 @@ LINT_OPTIONS = -beprxzF
 # May make Vim twice as slow.  Errors are reported on stderr.
 # More at: https://code.google.com/p/address-sanitizer/
 # Useful environment variables:
-# $ export ASAN_OPTIONS="print_stacktrace=1 log_path=asan"
-# $ export LSAN_OPTIONS="suppressions=`pwd`/testdir/lsan-suppress.txt"
+$ export ASAN_OPTIONS="print_stacktrace=1 log_path=/Users/mw/workspace/vim/src/asan/"
+$ export LSAN_OPTIONS="suppressions=`pwd`/testdir/lsan-suppress.txt"
 # When running tests output can be found in testdir/asan.*
-#SANITIZER_CFLAGS = -g -O0 -fsanitize-recover=all \
-#		   -fsanitize=address -fsanitize=undefined \
-#		   -fno-omit-frame-pointer
+SANITIZER_CFLAGS = -g -O0 -fsanitize-recover=all \
+		   -fsanitize=address -fsanitize=undefined \
+		   -fno-omit-frame-pointer
 
 # Similarly when compiling with clang and using ubsan.
 # $ export UBSAN_OPTIONS="print_stacktrace=1 log_path=ubsan"
