@@ -5099,10 +5099,9 @@ fuzzy_match_str(char_u *str, char_u *pat)
  * returns NULL.
  */
     garray_T *
-fuzzy_match_str_with_pos(char_u *str UNUSED, char_u *pat UNUSED)
+fuzzy_match_str_with_pos(char_u *str UNUSED, char_u *pat UNUSED, int *score UNUSED)
 {
 #ifdef FEAT_SEARCH_EXTRA
-    int		    score = 0;
     garray_T	    *match_positions = NULL;
     int_u	    matches[MAX_FUZZY_MATCHES];
     int		    j = 0;
@@ -5113,16 +5112,16 @@ fuzzy_match_str_with_pos(char_u *str UNUSED, char_u *pat UNUSED)
     match_positions = ALLOC_ONE(garray_T);
     if (match_positions == NULL)
 	return NULL;
-    ga_init2(match_positions, sizeof(int_u), 10);
 
-    if (!fuzzy_match(str, pat, FALSE, &score, matches, MAX_FUZZY_MATCHES)
-	    || score == 0)
+    if (!fuzzy_match(str, pat, FALSE, score, matches, MAX_FUZZY_MATCHES)
+	    || *score == 0)
     {
 	ga_clear(match_positions);
 	vim_free(match_positions);
 	return NULL;
     }
 
+    ga_init2(match_positions, sizeof(int_u), 10);
     for (char_u *p = pat; *p != NUL; MB_PTR_ADV(p))
     {
 	if (!VIM_ISWHITE(PTR2CHAR(p)))

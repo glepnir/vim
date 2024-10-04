@@ -359,6 +359,8 @@ cmdline_pum_create(
 	compl_match_array[i].pum_info = NULL;
 	compl_match_array[i].pum_extra = NULL;
 	compl_match_array[i].pum_kind = NULL;
+	compl_match_array[i].pum_score = -1;
+	compl_match_array[i].pum_fuzzypos = NULL;
 	compl_match_array[i].pum_user_hlattr = -1;
     }
 

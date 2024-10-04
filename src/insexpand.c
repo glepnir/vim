@@ -105,6 +105,7 @@ struct compl_S
     int		cp_flags;	// CP_ values
     int		cp_number;	// sequence number
     int		cp_score;	// fuzzy match score
+    garray_T	*cp_fuzzypos;
     int		cp_user_hlattr;	// highlight attribute to combine with
     int		cp_user_kind_hlattr; // highlight attribute for kind
 };
@@ -839,6 +840,8 @@ ins_compl_add(
     match->cp_flags = flags;
     match->cp_user_hlattr = user_hlattr;
     match->cp_user_kind_hlattr = user_kind_hlattr;
+    match->cp_fuzzypos = NULL;
+    match->cp_score = 0;
 
     if (cptext != NULL)
     {
@@ -1242,8 +1245,15 @@ ins_compl_build_pum(void)
 	// When 'completeopt' contains "fuzzy" and leader is not NULL or empty,
 	// set the cp_score for later comparisons.
 	if (compl_fuzzy_match && compl_leader != NULL && lead_len > 0)
-	    compl->cp_score = fuzzy_match_str(compl->cp_str, compl_leader);
-
+	{
+	    if (compl->cp_fuzzypos != NULL)
+	    {
+		ga_clear(compl->cp_fuzzypos);
+		vim_free(compl->cp_fuzzypos);
+	    }
+	    compl->cp_fuzzypos = fuzzy_match_str_with_pos(compl->cp_str,
+					    compl_leader, &compl->cp_score);
+	}
 	if (!match_at_original_text(compl)
 		&& (compl_leader == NULL
 		    || ins_compl_equal(compl, compl_leader, lead_len)
@@ -1335,6 +1345,7 @@ ins_compl_build_pum(void)
 	    compl_match_array[i].pum_kind = compl->cp_text[CPT_KIND];
 	    compl_match_array[i].pum_info = compl->cp_text[CPT_INFO];
 	    compl_match_array[i].pum_score = compl->cp_score;
+	    compl_match_array[i].pum_fuzzypos = compl->cp_fuzzypos;
 	    compl_match_array[i].pum_user_hlattr = compl->cp_user_hlattr;
 	    compl_match_array[i].pum_user_kind_hlattr = compl->cp_user_kind_hlattr;
 	    if (compl->cp_text[CPT_MENU] != NULL)
@@ -1794,6 +1805,11 @@ ins_compl_free(void)
 	match = compl_curr_match;
 	compl_curr_match = compl_curr_match->cp_next;
 	vim_free(match->cp_str);
+	if (match->cp_fuzzypos != NULL)
+	{
+	    ga_clear(match->cp_fuzzypos);
+	    vim_free(match->cp_fuzzypos);
+	}
 	// several entries may use the same fname, free it just once.
 	if (match->cp_flags & CP_FREE_FNAME)
 	    vim_free(match->cp_fname);

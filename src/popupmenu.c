@@ -425,7 +425,7 @@ pum_under_menu(int row, int col, int only_redrawing)
  * Returns attributes for every cell, or NULL if all attributes are the same.
  */
     static int *
-pum_compute_text_attrs(char_u *text, hlf_T hlf, int user_hlattr)
+pum_compute_text_attrs(char_u *text, hlf_T hlf, int user_hlattr, garray_T *ga)
 {
     int		i;
     size_t	leader_len;
@@ -433,12 +433,12 @@ pum_compute_text_attrs(char_u *text, hlf_T hlf, int user_hlattr)
     int		new_attr;
     char_u	*ptr = text;
     int		cell_idx = 0;
-    garray_T	*ga = NULL;
     int		*attrs = NULL;
     char_u	*leader = NULL;
     int		in_fuzzy;
     int		matched_start = FALSE;
     int_u	char_pos = 0;
+    int		score = 0;
 
     if ((hlf != HLF_PSI && hlf != HLF_PNI)
 	    || (highlight_attr[HLF_PMSI] == highlight_attr[HLF_PSI]
@@ -454,14 +454,15 @@ pum_compute_text_attrs(char_u *text, hlf_T hlf, int user_hlattr)
     if (attrs == NULL)
 	return NULL;
 
-    in_fuzzy = State == MODE_CMDLINE ? cmdline_compl_is_fuzzy()
+    int in_cmdline = State == MODE_CMDLINE ? TRUE : FALSE;
+    in_fuzzy =	in_cmdline ? cmdline_compl_is_fuzzy()
 					  : (get_cot_flags() & COT_FUZZY) != 0;
     leader_len = STRLEN(leader);
 
-    if (in_fuzzy)
-	ga = fuzzy_match_str_with_pos(text, leader);
-    else
+    if (!in_fuzzy)
 	matched_start = MB_STRNICMP(text, leader, leader_len) == 0;
+    else if (in_fuzzy && in_cmdline)
+	ga = fuzzy_match_str_with_pos(text, leader, &score);
 
     while (*ptr != NUL)
     {
@@ -495,7 +496,7 @@ pum_compute_text_attrs(char_u *text, hlf_T hlf, int user_hlattr)
 	char_pos++;
     }
 
-    if (ga != NULL)
+    if (ga != NULL && in_cmdline)
     {
 	ga_clear(ga);
 	vim_free(ga);
@@ -688,7 +689,7 @@ pum_redraw(void)
 			    *p = saved;
 
 			int user_hlattr = pum_array[idx].pum_user_hlattr;
-			attrs = pum_compute_text_attrs(st, hlf, user_hlattr);
+			attrs = pum_compute_text_attrs(st, hlf, user_hlattr, pum_array[idx].pum_fuzzypos);
 
 #ifdef FEAT_RIGHTLEFT
 			if (pum_rl)
