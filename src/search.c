@@ -12,6 +12,19 @@
 
 #include "vim.h"
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+    #define PLATFORM_X86 1
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+    #define PLATFORM_ARM_NEON 1
+#endif
+
+#ifdef PLATFORM_X86
+    #include <immintrin.h>  // For x86/x64 SIMD intrinsics
+#elif defined(PLATFORM_ARM_NEON)
+    #include <arm_neon.h>   // For ARM NEON intrinsics
+#endif
+
+
 #ifdef FEAT_EVAL
 static void set_vv_searchforward(void);
 static int first_submatch(regmmatch_T *rp);
@@ -4361,6 +4374,131 @@ typedef struct
 #define SCORE_NONE	(-9999)
 
 #define FUZZY_MATCH_RECURSION_LIMIT	10
+
+    int
+fuzzy_match_simd(const char_u *pattern, const char_u *text)
+{
+    int	    pattern_len = STRLEN(pattern);
+    int	    text_len = STRLEN(text);
+    int	    p_idx = 0, t_idx = 0;
+    int	    score = 0;
+    int	    consecutive = 0;
+    int	    first_match = 1;
+
+    // range text to find pattern
+    while (p_idx < pattern_len && t_idx < text_len)
+    {
+#ifdef PLATFORM_X86
+        // handle 16 bytes chunk and fill with 0
+        char text_chunk_data[16] = {0};
+        int remaining_len = text_len - t_idx;
+        int chunk_size = (remaining_len >= 16) ? 16 : remaining_len;
+        memcpy(text_chunk_data, text + t_idx, chunk_size);
+
+        // ignore case
+        for (int i = 0; i < chunk_size; i++)
+	    text_chunk_data[i] = tolower(text_chunk_data[i]);
+
+        __m128i text_chunk = _mm_loadu_si128((__m128i *)text_chunk_data);
+        __m128i pattern_char = _mm_set1_epi8(tolower(pattern[p_idx]));
+
+        __m128i match = _mm_cmpeq_epi8(pattern_char, text_chunk);
+        int match_mask = _mm_movemask_epi8(match);
+
+	if (match_mask)
+	{
+	    // find position
+	    int shift = __builtin_ctz(match_mask);
+	    t_idx += shift;
+
+	    // add bounds
+	    if (first_match)
+	    {
+		score += FIRST_LETTER_BONUS;
+		first_match = 0;
+	    }
+	    else if (consecutive)
+	    {
+		score += SEQUENTIAL_BONUS;
+	    }
+
+	    // CamelCase bounds
+	    if (t_idx > 0 && islower(text[t_idx - 1]) && isupper(text[t_idx]))
+		score += CAMEL_BONUS;
+
+	    // separator bounds
+	    if (t_idx > 0 && (text[t_idx - 1] == '/' || text[t_idx - 1] == '\\' || text[t_idx - 1] == '_'))
+		score += PATH_SEPARATOR_BONUS;
+
+	    p_idx++;
+	    t_idx++;
+	    consecutive = 1;
+	}
+	else
+	{
+	    t_idx += 16;
+	    consecutive = 0;
+	}
+#elif defined(PLATFORM_ARM_NEON)
+	uint8_t text_chunk_data[16] = {0};
+	int remaining_len = text_len - t_idx;
+	int chunk_size = (remaining_len >= 16) ? 16 : remaining_len;
+	memcpy(text_chunk_data, text + t_idx, chunk_size);
+
+	for (int i = 0; i < chunk_size; i++)
+	    text_chunk_data[i] = tolower(text_chunk_data[i]);
+
+	uint8x16_t text_chunk = vld1q_u8((const uint8_t *)text_chunk_data);
+	uint8x16_t pattern_char = vdupq_n_u8(tolower(pattern[p_idx]));
+
+	uint8x16_t match = vceqq_u8(pattern_char, text_chunk);
+	uint8_t match_result[16];
+	vst1q_u8(match_result, match);
+
+	int found = 0;
+	for (int k = 0; k < 16; ++k)
+	{
+	    if (match_result[k])
+	    {
+		t_idx += k;
+
+		if (first_match)
+		{
+		    score += FIRST_LETTER_BONUS;
+		    first_match = 0;
+		}
+		else if (consecutive)
+		{
+		    score += SEQUENTIAL_BONUS;
+		}
+
+		if (t_idx > 0 && islower(text[t_idx - 1]) && isupper(text[t_idx]))
+		    score += CAMEL_BONUS;
+
+		if (t_idx > 0 && (text[t_idx - 1] == '/' || text[t_idx - 1] == '\\' || text[t_idx - 1] == '_'))
+		    score += PATH_SEPARATOR_BONUS;
+
+		p_idx++;
+		t_idx++;
+		consecutive = 1;
+		found = 1;
+		break;
+	    }
+	}
+	if (!found)
+	{
+	    t_idx += 16;
+	    consecutive = 0;
+	}
+#endif
+    }
+
+    if (p_idx < pattern_len)
+        return SCORE_NONE;
+
+    score += LEADING_LETTER_PENALTY * (t_idx - pattern_len);
+    return score;
+}
 
 /*
  * Compute a score for a fuzzy matched string. The matching character locations
