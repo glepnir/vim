@@ -744,6 +744,21 @@ ins_compl_add_infercase(
 }
 
 /*
+ * Check the ctrl_x_mode has configed in completefuzzycollect
+ */
+    static int
+cfc_has_mode()
+{
+    if (ctrl_x_mode == CTRL_X_NORMAL && (cfc_flags & (1 << 0)))
+	return TRUE;
+    if (ctrl_x_mode == CTRL_X_FILES && (cfc_flags & (1 << 1)))
+	return TRUE;
+    if (ctrl_x_mode == CTRL_X_WHOLE_LINE && (cfc_flags & (1 << 2)))
+	return TRUE;
+    return FALSE;
+}
+
+/*
  * Add a match to the list of matches. The arguments are:
  *     str       - text of the match to add
  *     len       - length of "str". If -1, then the length of "str" is
@@ -1453,6 +1468,8 @@ ins_compl_show_pum(void)
     char_u *
 ins_compl_leader(void)
 {
+    if (cfc_has_mode() && ctrl_x_mode_normal() && compl_get_longest)
+	return compl_orig_text;
     return compl_leader != NULL ? compl_leader : compl_orig_text;
 }
 
@@ -3556,7 +3573,7 @@ get_next_filename_completion(void)
     int		score;
     char_u	*leader = ins_compl_leader();
     size_t	leader_len = STRLEN(leader);
-    int		in_fuzzy = ((get_cot_flags() & COT_FUZZY) != 0 && leader_len > 0);
+    int		in_fuzzy = (cfc_has_mode() && leader_len > 0);
     char_u	**sorted_matches;
     int		*fuzzy_indices_data;
     char_u	*last_sep = NULL;
@@ -3840,7 +3857,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     int		looped_around = FALSE;
     char_u	*ptr = NULL;
     int		len = 0;
-    int		in_fuzzy = (get_cot_flags() & COT_FUZZY) != 0 && compl_length > 0;
+    int		in_fuzzy = cfc_has_mode() && compl_length > 0;
     char_u	*leader = ins_compl_leader();
 
     // If 'infercase' is set, don't use 'smartcase' here
@@ -3855,7 +3872,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     save_p_ws = p_ws;
     if (st->ins_buf != curbuf)
 	p_ws = FALSE;
-    else if (*st->e_cpt == '.' && !in_fuzzy)
+    else if (*st->e_cpt == '.')
 	p_ws = TRUE;
     looped_around = FALSE;
     for (;;)
@@ -3864,15 +3881,15 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
 
 	++msg_silent;  // Don't want messages for wrapscan.
 
-	// ctrl_x_mode_line_or_eval() || word-wise search that
-	// has added a word that was at the beginning of the line
-	if ((ctrl_x_mode_whole_line() && !in_fuzzy) || ctrl_x_mode_eval() || (compl_cont_status & CONT_SOL))
-	    found_new_match = search_for_exact_line(st->ins_buf,
-			    st->cur_match_pos, compl_direction, compl_pattern);
-	else if (in_fuzzy)
+	if (in_fuzzy)
 	     found_new_match = search_for_fuzzy_match(st->ins_buf,
 			    st->cur_match_pos, leader, compl_direction,
-			    start_pos, &len, &ptr, ctrl_x_mode_whole_line());
+			    start_pos, &len, &ptr);
+	// ctrl_x_mode_line_or_eval() || word-wise search that
+	// has added a word that was at the beginning of the line
+	else if (ctrl_x_mode_whole_line() || ctrl_x_mode_eval() || (compl_cont_status & CONT_SOL))
+	    found_new_match = search_for_exact_line(st->ins_buf,
+			    st->cur_match_pos, compl_direction, compl_pattern);
 	else
 	    found_new_match = searchit(NULL, st->ins_buf, st->cur_match_pos,
 				NULL, compl_direction, compl_pattern, compl_patternlen,

@@ -5218,8 +5218,7 @@ search_for_fuzzy_match(
     int		dir,
     pos_T	*start_pos,
     int		*len,
-    char_u	**ptr,
-    int		whole_line)
+    char_u	**ptr)
 {
     pos_T	current_pos = *pos;
     pos_T	circly_end;
@@ -5228,6 +5227,7 @@ search_for_fuzzy_match(
     char_u	*next_word_end = NULL;
     char_u	*match_word = NULL;
 
+    int whole_line = ctrl_x_mode_whole_line();
     if (whole_line)
 	current_pos.lnum += dir;
 

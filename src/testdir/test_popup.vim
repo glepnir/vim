@@ -1483,7 +1483,7 @@ func Test_pum_highlights_match()
   call VerifyScreenDump(buf, 'Test_pum_highlights_09', {})
 
   " issue #15095 wrong select
-  call term_sendkeys(buf, "\<ESC>:set completeopt=fuzzy,menu\<CR>")
+  call term_sendkeys(buf, "\<ESC>:set completeopt=menu cfc=keyword,filename\<CR>")
   call TermWait(buf)
   call term_sendkeys(buf, "S hello helio hero h\<C-X>\<C-P>")
   call TermWait(buf, 50)

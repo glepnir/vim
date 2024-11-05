@@ -2600,7 +2600,7 @@ func Test_completefunc_first_call_complete_add()
   bwipe!
 endfunc
 
-func Test_complete_fuzzy_match()
+func Test_complete_opt_fuzzy()
   func OnPumChange()
     let g:item = get(v:event, 'completed_item', {})
     let g:word = get(g:item, 'word', v:null)
@@ -2654,8 +2654,23 @@ func Test_complete_fuzzy_match()
   call feedkeys("S\<C-x>\<C-o>fb\<C-n>", 'tx')
   call assert_equal('fooBaz', g:word)
 
-  " avoid breaking default completion behavior
-  set completeopt=fuzzy,menu
+  " clean up
+  set omnifunc=
+  bw!
+  bw!
+  set complete& completeopt&
+  autocmd! AAAAA_Group
+  augroup! AAAAA_Group
+  delfunc OnPumChange
+  delfunc Omni_test
+  delfunc Comp
+  unlet g:item
+  unlet g:word
+endfunc
+
+func Test_complete_fuzzy_collect()
+  new
+  set cfc=keyword
   call setline(1, ['hello help hero h'])
   " Use "!" flag of feedkeys() so that ex_normal_busy is not set and
   " ins_compl_check_keys() is not skipped.
@@ -2687,17 +2702,8 @@ func Test_complete_fuzzy_match()
   call feedkeys("A\<C-X>\<C-N>\<C-N>\<Esc>0", 'tx!')
   call assert_equal('你的 我的 我的', getline('.'))
 
-  " respect wrapscan
-  set nowrapscan
-  call setline(1, ["xyz", "yxz", ""])
-  call cursor(3, 1)
-  call feedkeys("Sy\<C-X>\<C-N>\<Esc>0", 'tx!')
-  call assert_equal('y', getline('.'))
-  set wrapscan
-  call feedkeys("Sy\<C-X>\<C-N>\<Esc>0", 'tx!')
-  call assert_equal('xyz', getline('.'))
-
   " fuzzy on file
+  set cfc+=filename
   call writefile([''], 'fobar', 'D')
   call writefile([''], 'foobar', 'D')
   call setline(1, ['fob'])
@@ -2728,6 +2734,7 @@ func Test_complete_fuzzy_match()
   call assert_equal(' completeness', getline('.'))
 
   " fuzzy on whole line completion
+  set cfc+=wholeline
   call setline(1, ["world is on fire", "no one can save me but you", 'user can execute', ''])
   call cursor(4, 1)
   call feedkeys("Swio\<C-X>\<C-L>\<Esc>0", 'tx!')
@@ -2764,24 +2771,25 @@ func Test_complete_fuzzy_match()
   call assert_equal('你好 他好', getline('.'))
 
   " issue #15526
-  set completeopt=fuzzy,menuone,menu,noselect
+  set completeopt=menuone,menu,noselect
   call setline(1, ['Text', 'ToText', ''])
   call cursor(3, 1)
   call feedkeys("STe\<C-X>\<C-N>x\<CR>\<Esc>0", 'tx!')
   call assert_equal('Tex', getline('.'))
 
-  " clean up
-  set omnifunc=
+  " working with longest
+  set completeopt=menu,longest
+  set cfc=keyword
+  call setline(1, ["iaax", "iaay", "iaaz" , "iay", "ixa", ''])
+  " match iaax iax and i is common longest
+  exe "normal Sx\<C-X>\<C-N>\<esc>"
+  call assert_equal("i", getline('.'))
+  " match iaay iay and ia is common longest
+  exe "normal Say\<C-X>\<C-N>\<esc>"
+  call assert_equal("ia", getline('.'))
+
   bw!
-  bw!
-  set complete& completeopt&
-  autocmd! AAAAA_Group
-  augroup! AAAAA_Group
-  delfunc OnPumChange
-  delfunc Omni_test
-  delfunc Comp
-  unlet g:item
-  unlet g:word
+  set completeopt& cfc& cpt&
 endfunc
 
 func Test_complete_fuzzy_with_completeslash()
@@ -2791,7 +2799,7 @@ func Test_complete_fuzzy_with_completeslash()
   let orig_shellslash = &shellslash
   set cpt&
   new
-  set completeopt+=fuzzy
+  set completefuzzycollect=filename
   set noshellslash
 
   " Test with completeslash unset
