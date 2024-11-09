@@ -756,7 +756,7 @@ cfc_has_mode()
 	case CTRL_X_FILES:
 	    return (cfc_flags & 0x002) != 0;
 	case CTRL_X_WHOLE_LINE:
-	    return (cfc_flags & 0x003) != 0;
+	    return (cfc_flags & 0x004) != 0;
 	default:
 	    return FALSE;
     }
