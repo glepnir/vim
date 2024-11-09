@@ -11,7 +11,6 @@
  * insexpand.c: functions for Insert mode completion
  */
 
-#include "option.h"
 #include "vim.h"
 
 /*
@@ -756,10 +755,10 @@ cfc_has_mode()
 	    return (cfc_flags & 0x001) != 0;
 	case CTRL_X_FILES:
 	    return (cfc_flags & 0x002) != 0;
-	case CTRL_X_FILES:
+	case CTRL_X_WHOLE_LINE:
 	    return (cfc_flags & 0x003) != 0;
 	default:
-	    return FALSE
+	    return FALSE;
     }
 }
 
