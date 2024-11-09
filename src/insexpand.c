@@ -11,6 +11,7 @@
  * insexpand.c: functions for Insert mode completion
  */
 
+#include "option.h"
 #include "vim.h"
 
 /*
@@ -3573,7 +3574,7 @@ get_next_filename_completion(void)
     int		score;
     char_u	*leader = ins_compl_leader();
     size_t	leader_len = STRLEN(leader);
-    int		in_fuzzy = (cfc_has_mode() && leader_len > 0);
+    int		in_fuzzy = ((get_cot_flags() & COT_FUZZY != 0) && leader_len > 0);
     char_u	**sorted_matches;
     int		*fuzzy_indices_data;
     char_u	*last_sep = NULL;
