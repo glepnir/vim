@@ -750,13 +750,17 @@ ins_compl_add_infercase(
     static int
 cfc_has_mode()
 {
-    if (ctrl_x_mode == CTRL_X_NORMAL && (cfc_flags & 0x001))
-	return TRUE;
-    if (ctrl_x_mode == CTRL_X_FILES && (cfc_flags & 0x002))
-	return TRUE;
-    if (ctrl_x_mode == CTRL_X_WHOLE_LINE && (cfc_flags & 0x003))
-	return TRUE;
-    return FALSE;
+    switch (ctrl_x_mode)
+    {
+	case CTRL_X_NORMAL:
+	    return (cfc_flags & 0x001) != 0;
+	case CTRL_X_FILES:
+	    return (cfc_flags & 0x002) != 0;
+	case CTRL_X_FILES:
+	    return (cfc_flags & 0x003) != 0;
+	default:
+	    return FALSE
+    }
 }
 
 /*
@@ -3574,7 +3578,7 @@ get_next_filename_completion(void)
     int		score;
     char_u	*leader = ins_compl_leader();
     size_t	leader_len = STRLEN(leader);
-    int		in_fuzzy = ((get_cot_flags() & COT_FUZZY != 0) && leader_len > 0);
+    int		in_fuzzy = (cfc_has_mode() && leader_len > 0);
     char_u	**sorted_matches;
     int		*fuzzy_indices_data;
     char_u	*last_sep = NULL;
