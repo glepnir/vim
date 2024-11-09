@@ -3861,7 +3861,7 @@ get_next_default_completion(ins_compl_next_state_T *st, pos_T *start_pos)
     int		looped_around = FALSE;
     char_u	*ptr = NULL;
     int		len = 0;
-    int		in_fuzzy = cfc_has_mode() && compl_length > 0;
+    int		in_fuzzy = ((get_cot_flags() & COT_FUZZY) > 0 && compl_length > 0);
     char_u	*leader = ins_compl_leader();
 
     // If 'infercase' is set, don't use 'smartcase' here
