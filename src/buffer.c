@@ -3059,13 +3059,14 @@ fname_match(
 
     // Ignore case when 'fileignorecase' or the argument is set.
     rmp->rm_ic = p_fic || ignore_case;
-    if (vim_regexec(rmp, name, (colnr_T)0))
+    if (vim_regexec(rmp, name, (colnr_T)0) && rmp->regprog != NULL)
 	match = name;
-    else if (rmp->regprog != NULL)
+
+    if (match == NULL && rmp->regprog != NULL)
     {
 	// Replace $(HOME) with '~' and try matching again.
 	p = home_replace_save(NULL, name);
-	if (p != NULL && vim_regexec(rmp, p, (colnr_T)0))
+	if (p != NULL && vim_regexec(rmp, p, (colnr_T)0) && rmp->regprog != NULL)
 	    match = name;
 	vim_free(p);
     }
