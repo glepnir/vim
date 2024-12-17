@@ -1173,7 +1173,7 @@ win_line(
 					// highlighting
     int		area_attr = 0;		// attributes desired by highlighting
     int		search_attr = 0;	// attributes desired by 'hlsearch'
-    int		ins_match_attr = 0;	// attributes desired by PmenuMatch
+    int		ins_match_attr = 0;	// attributes desired by 'ComplMatchIns'
 #ifdef FEAT_SYN_HL
     int		vcol_save_attr = 0;	// saved attr for 'cursorcolumn'
     int		syntax_attr = 0;	// attributes desired by syntax
