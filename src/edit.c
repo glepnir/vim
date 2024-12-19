@@ -65,7 +65,6 @@ static void ins_pagedown(void);
 #ifdef FEAT_DND
 static void ins_drop(void);
 #endif
-static int  ins_tab(void);
 #ifdef FEAT_DIGRAPHS
 static int  ins_digraph(void);
 #endif
@@ -4889,7 +4888,7 @@ ins_drop(void)
  * Handle TAB in Insert or Replace mode.
  * Return TRUE when the TAB needs to be inserted like a normal character.
  */
-    static int
+    int
 ins_tab(void)
 {
     int		ind;

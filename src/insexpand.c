@@ -171,6 +171,7 @@ static pos_T	  compl_startpos;
 // Length in bytes of the text being completed (this is deleted to be replaced
 // by the match.)
 static int	  compl_length = 0;
+static linenr_T	  compl_lnum = 0;	    // lnum where the completion start
 static colnr_T	  compl_col = 0;	    // column where the text starts
 					    // that is being completed
 static colnr_T	  compl_ins_end_col = 0;
@@ -3064,6 +3065,7 @@ set_completion(colnr_T startcol, list_T *list)
     if (startcol > curwin->w_cursor.col)
 	startcol = curwin->w_cursor.col;
     compl_col = startcol;
+    compl_lnum = curwin->w_cursor.lnum;
     compl_length = (int)curwin->w_cursor.col - (int)startcol;
     // compl_pattern doesn't need to be set
     compl_orig_text.string = vim_strnsave(ml_get_curline() + compl_col, (size_t)compl_length);
@@ -4259,6 +4261,12 @@ ins_compl_delete(void)
     // In insert mode: Delete the typed part.
     // In replace mode: Put the old characters back, if any.
     col = compl_col + (compl_status_adding() ? compl_length : 0);
+    while (curwin->w_cursor.lnum > compl_lnum)
+    {
+        ml_delete(curwin->w_cursor.lnum);
+        curwin->w_cursor.lnum--;
+    }
+
     if ((int)curwin->w_cursor.col > col)
     {
 	if (stop_arrow() == FAIL)
@@ -4276,6 +4284,32 @@ ins_compl_delete(void)
 #endif
 }
 
+
+/*
+ * handle sepecial characters in word like wrap tab etc.
+ */
+    static void
+ins_compl_with_special_chars(char_u *str)
+{
+    while (*str)
+    {
+	if (*str == '\n')
+	{
+	    open_line(FORWARD, OPENLINE_DELSPACES, FALSE, NULL);
+	    curwin->w_cursor.col = 0;
+	}
+	else if (*str == TAB)
+	    ins_tab();
+	else
+	{
+	    int len = mb_ptr2len(str);
+	    ins_char_bytes((char_u *)str, len);
+	    str += len - 1;
+	}
+	str++;
+    }
+}
+
 /*
  * Insert the new text being completed.
  * "in_compl_func" is TRUE when called from complete_check().
@@ -4288,7 +4322,8 @@ ins_compl_insert(int in_compl_func)
     // Make sure we don't go over the end of the string, this can happen with
     // illegal bytes.
     if (compl_len < (int)compl_shown_match->cp_str.length)
-	ins_compl_insert_bytes(compl_shown_match->cp_str.string + compl_len, -1);
+	ins_compl_with_special_chars(compl_shown_match->cp_str.string);
+	// ins_compl_insert_bytes(compl_shown_match->cp_str.string + compl_len, -1);
     if (match_at_original_text(compl_shown_match))
 	compl_used_match = FALSE;
     else
@@ -5272,6 +5307,7 @@ ins_compl_start(void)
     line = ml_get(curwin->w_cursor.lnum);
     curs_col = curwin->w_cursor.col;
     compl_pending = 0;
+    compl_lnum = curwin->w_cursor.lnum;
 
     if ((compl_cont_status & CONT_INTRPT) == CONT_INTRPT
 	    && compl_cont_mode == ctrl_x_mode)
@@ -5322,6 +5358,7 @@ ins_compl_start(void)
 	    curbuf->b_p_com = old;
 	    compl_length = 0;
 	    compl_col = curwin->w_cursor.col;
+	    compl_lnum = curwin->w_cursor.lnum;
 	}
 	else if (ctrl_x_mode_normal() && in_fuzzy)
 	{
