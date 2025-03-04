@@ -4477,6 +4477,8 @@ ins_compl_expand_multiple(char_u *str)
     char_u	*start = str;
     char_u	*curr = str;
     int		base_indent = get_indent();
+    int		paste = p_paste;
+    p_paste = TRUE;
 
     while (*curr != NUL)
     {
@@ -4497,6 +4499,7 @@ ins_compl_expand_multiple(char_u *str)
     if (curr > start)
 	ins_char_bytes(start, (int)(curr - start));
 
+    p_paste = paste;
     compl_ins_end_col = curwin->w_cursor.col;
 }
 
