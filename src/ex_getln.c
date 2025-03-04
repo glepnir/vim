@@ -915,6 +915,10 @@ cmdline_wildchar_complete(
 	options |= WILD_BUFLASTUSED;
     if (wim_flags[0] & WIM_NOSELECT)
 	options |= WILD_KEEP_SOLE_ITEM;
+    if ((wim_flags[0] & (WIM_NOINSERT | WIM_LONGEST )) == WIM_NOINSERT
+		&& ((wim_flags[wim_index] & WIM_LIST)
+		    || (p_wmnu && (wim_flags[wim_index] & WIM_FULL) != 0)))
+	options |= WILD_NO_INSERT;
     if (xp->xp_numfiles > 0)   // typed p_wc at least twice
     {
 	// if 'wildmode' contains "list" may still need to list
@@ -2722,6 +2726,8 @@ check_opt_wim(void)
 	    new_wim_flags[idx] |= WIM_BUFLASTUSED;
 	else if (i == 8 && STRNCMP(p, "noselect", 8) == 0)
 	    new_wim_flags[idx] |= WIM_NOSELECT;
+	else if (i == 8 && STRNCMP(p, "noinsert", 8) == 0)
+	    new_wim_flags[idx] |= WIM_NOINSERT;
 	else
 	    return FAIL;
 	p += i;

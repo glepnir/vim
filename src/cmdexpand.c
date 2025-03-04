@@ -311,7 +311,11 @@ nextwild(
 	}
     }
 
-    if (p2 != NULL && !got_int)
+    int insert_match = TRUE;
+    if ((options & WILD_NO_INSERT) && xp->xp_numfiles > 1 && xp->xp_selected == 0)
+	insert_match = FALSE;
+
+    if (p2 != NULL && !got_int && insert_match)
     {
 	difflen = (int)STRLEN(p2) - xp->xp_pattern_len;
 	if (ccline->cmdlen + difflen + 4 > ccline->cmdbufflen)
