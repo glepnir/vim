@@ -5229,7 +5229,7 @@ fuzzy_match_str_with_pos(char_u *str UNUSED, char_u *pat UNUSED)
  * - `*len` is set to the length of the matched word.
  * - `*score` contains the match score.
  *
- * If no match is found, `*ptr` is updated to to the end of the line.
+ * If no match is found, `*ptr` is updated to end of the line.
  */
     int
 fuzzy_match_str_in_line(
@@ -5313,10 +5313,7 @@ search_for_fuzzy_match(
     pos_T	circly_end;
     int		found_new_match = FALSE;
     int		looped_around = FALSE;
-
-    int whole_line = ctrl_x_mode_whole_line();
-    if (whole_line)
-	current_pos.lnum += dir;
+    int		whole_line = ctrl_x_mode_whole_line();
 
     if (buf == curbuf)
         circly_end = *start_pos;
@@ -5326,6 +5323,9 @@ search_for_fuzzy_match(
         circly_end.col = 0;
         circly_end.coladd = 0;
     }
+
+    if (whole_line && start_pos->lnum != pos->lnum)
+	current_pos.lnum += dir;
 
     do {
 
@@ -5343,12 +5343,15 @@ search_for_fuzzy_match(
 	    if (*ptr != NULL && **ptr != NUL)
 	    {
 		if (!whole_line)
-		{
 		    *ptr += current_pos.col;
-		    // Try to find a fuzzy match in the current line starting
-		    // from current position
-		    found_new_match = fuzzy_match_str_in_line(ptr, pattern,
+		if (**ptr != NUL)
+		{
+		    if (whole_line)
+			found_new_match = fuzzy_match_str(*ptr, pattern);
+		    else
+			found_new_match = fuzzy_match_str_in_line(ptr, pattern,
 						    len, &current_pos, score);
+
 		    if (found_new_match)
 		    {
 			if (ctrl_x_mode_normal())
@@ -5370,29 +5373,30 @@ search_for_fuzzy_match(
 					}
 				    else
 				       next_word_end = find_word_end(next_word_end);
-				}
-				else if (looped_around)
-				    found_new_match = FALSE;
 
-				*len = next_word_end - *ptr;
-				current_pos.col = *len;
+				    *len = next_word_end - *ptr;
+				    current_pos.col = *len;
+				    break;
+				}
+				else
+				    found_new_match = FALSE;
+			    }
+
+			    if (found_new_match)
+			    {
+				*pos = current_pos;
+				break;
 			    }
 			}
-			*pos = current_pos;
-			break;
+			else if (whole_line)
+			{
+			    *len = (int)ml_get_buf_len(buf, current_pos.lnum);
+			    *pos = current_pos;
+			    break;
+			}
 		    }
 		    else if (looped_around && current_pos.lnum == circly_end.lnum)
 			break;
-		}
-		else
-		{
-		    if (fuzzy_match_str(*ptr, pattern) > 0)
-		    {
-			found_new_match = TRUE;
-			*pos = current_pos;
-			*len = (int)ml_get_buf_len(buf, current_pos.lnum);
-			break;
-		    }
 		}
 	    }
 	}
@@ -5402,7 +5406,7 @@ search_for_fuzzy_match(
 	{
 	    if (++current_pos.lnum > buf->b_ml.ml_line_count)
 	    {
-		if (p_ws)
+		if (p_ws && !looped_around)
 		{
 		    current_pos.lnum = 1;
 		    looped_around = TRUE;
@@ -5415,7 +5419,7 @@ search_for_fuzzy_match(
 	{
 	    if (--current_pos.lnum < 1)
 	    {
-		if (p_ws)
+		if (p_ws && !looped_around)
 		{
 		    current_pos.lnum = buf->b_ml.ml_line_count;
 		    looped_around = TRUE;
