@@ -4960,6 +4960,8 @@ do_fuzzymatch(typval_T *argvars, typval_T *rettv, int retmatchpos)
     int		matchseq = FALSE;
     long	max_matches = 0;
     int		camelcase = TRUE;
+    char_u	*pattern = NULL;
+    char_u	*orig_pat = NULL;
 
     if (in_vim9script()
 	    && (check_for_list_arg(argvars, 0) == FAIL
@@ -4982,6 +4984,7 @@ do_fuzzymatch(typval_T *argvars, typval_T *rettv, int retmatchpos)
 	semsg(_(e_invalid_argument_str), tv_get_string(&argvars[1]));
 	return;
     }
+    pattern = argvars[1].vval.v_string;
 
     if (argvars[2].v_type != VAR_UNKNOWN)
     {
@@ -5036,8 +5039,36 @@ do_fuzzymatch(typval_T *argvars, typval_T *rettv, int retmatchpos)
 	    camelcase = tv_get_bool_chk(&di->di_tv, NULL);
 	}
 
-	if (dict_has_key(d, "matchseq"))
-	    matchseq = TRUE;
+	if ((di = dict_find(d, (char_u *)"matchseq", -1)) != NULL)
+        {
+	    if (di->di_tv.v_type == VAR_NUMBER)
+		matchseq = (int)tv_get_number_chk(&di->di_tv, NULL);
+	    else if (di->di_tv.v_type == VAR_BOOL)
+	    {
+		matchseq = tv_get_bool_chk(&di->di_tv, NULL);
+	    }
+	    else
+	    {
+		semsg(_(e_invalid_value_for_argument_str), "matchseq");
+		return;
+	    }
+
+	    if (matchseq == TRUE)
+	    {
+	        matchseq = 0;
+	        orig_pat = pattern;
+	        if (has_mbyte)
+	        {
+		    while (*orig_pat != NUL)
+		    {
+			matchseq++;
+			MB_PTR_ADV(orig_pat);
+		    }
+	        }
+	        else
+		    matchseq = (int)STRLEN(pattern);
+	    }
+        }
     }
 
     // get the fuzzy matches
@@ -5078,9 +5109,8 @@ do_fuzzymatch(typval_T *argvars, typval_T *rettv, int retmatchpos)
 	}
     }
 
-    fuzzy_match_in_list(argvars[0].vval.v_list, tv_get_string(&argvars[1]),
-	    matchseq, key, &cb, retmatchpos, rettv->vval.v_list, max_matches,
-	    camelcase);
+    fuzzy_match_in_list(argvars[0].vval.v_list, pattern, matchseq, key, &cb,
+	    retmatchpos, rettv->vval.v_list, max_matches, camelcase);
 
 done:
     free_callback(&cb);

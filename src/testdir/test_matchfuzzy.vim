@@ -55,7 +55,7 @@ func Test_matchfuzzy()
   call assert_equal([], ['foo bar']->matchfuzzy(" \t "))
 
   " test for matching a sequence of words
-  call assert_equal(['bar foo'], ['foo bar', 'bar foo', 'foobar', 'barfoo']->matchfuzzy('bar foo', {'matchseq' : 1}))
+  call assert_equal(['bar foo'], ['foo bar', 'bar foo', 'foobar', 'barfoo']->matchfuzzy('bar foo', {'matchseq' : v:true}))
   call assert_equal([#{text: 'two one'}], [#{text: 'one two'}, #{text: 'two one'}]->matchfuzzy('two one', #{key: 'text', matchseq: v:true}))
 
   %bw!
@@ -143,7 +143,7 @@ func Test_matchfuzzypos()
   call assert_equal([['foo bar baz'], [[8, 9, 10, 0, 1, 2]], [519]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('baz foo'))
   call assert_equal([[], [], []], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('baz foo', {'matchseq': 1}))
   call assert_equal([['foo bar baz'], [[0, 1, 2, 8, 9, 10]], [519]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo baz'))
-  call assert_equal([['foo bar baz'], [[0, 1, 2, 3, 4, 5, 10]], [476]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo baz', {'matchseq': 1}))
+  call assert_equal([['foo bar baz', 'foo bar'], [[0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6]], [225, 225]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo bar', {'matchseq': 1}))
   call assert_equal([[], [], []], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('one two'))
   call assert_equal([[], [], []], ['foo bar']->matchfuzzypos(" \t "))
   call assert_equal([['grace'], [[1, 2, 3, 4, 2, 3, 4, 0, 1, 2, 3, 4]], [1057]], ['grace']->matchfuzzypos('race ace grace'))
@@ -317,6 +317,19 @@ func Test_matchfuzzy_initialized()
 
   " clean up
   call StopVimInTerminal(buf)
+endfunc
+
+func Test_matchfuzzy_matchseq()
+  call assert_equal([['fobar'], [[0, 1, 2]], [268]], ['fobar', 'foobar']->matchfuzzypos('fob', #{matchseq: 3}))
+  call assert_equal([['你好'], [[0, 1]], [255]], ['你好', '你不好']->matchfuzzypos('你好', #{matchseq: 2}))
+  call assert_equal([['hello world'], [[0, 1, 2, 3, 4, 6]], [225]], ['hello world', 'hello mars']->matchfuzzypos('hello w', #{matchseq: 7}))
+
+  call assert_equal([['testing'], [[0]], [165]], ['testing', 'starting']->matchfuzzypos('t', #{matchseq: 1}))
+
+  call assert_equal([[], [], [], ['你好 世界', '你好 朋友']->matchfuzzypos('你好世', #{matchseq: 3}))
+
+  call assert_equal([['special\tchar'], [[0, 1, 2, 3, 4, 5, 6, 7]], [532]], 
+        \ ['special\tchar', 'special char']->matchfuzzypos('special\t', #{matchseq: 8}))
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab
