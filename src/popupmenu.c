@@ -1326,6 +1326,12 @@ pum_set_selected(int n, int repeat UNUSED)
     return resized;
 }
 
+    void
+pum_clean(void)
+{
+    pum_array = NULL;
+}
+
 /*
  * Undisplay the popup menu (later).
  */

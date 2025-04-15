@@ -1547,6 +1547,9 @@ ins_compl_show_pum(void)
 	return;
     }
 
+    if (p_ph > 0 && compl_match_arraysize < p_ph && pum_visible())
+	pum_undisplay();
+
     // In Replace mode when a $ is displayed at the end of the line only
     // part of the screen would be updated.  We do need to redraw here.
     dollar_vcol = -1;
@@ -2179,7 +2182,14 @@ ins_compl_need_restart(void)
     static void
 ins_compl_new_leader(void)
 {
-    ins_compl_del_pum();
+    if (p_ph > 0 && pum_visible() && compl_match_arraysize >= p_ph)
+    {
+	pum_clean();
+	if (compl_match_array != NULL)
+	    VIM_CLEAR(compl_match_array);
+    }
+    else
+	ins_compl_del_pum();
     ins_compl_delete();
     ins_compl_insert_bytes(compl_leader.string + get_compl_len(), -1);
     compl_used_match = FALSE;
