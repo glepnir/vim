@@ -9,7 +9,6 @@
 /*
  * optiondefs.h: option definitions
  */
-
 // The options that are local to a window or buffer have "indir" set to one of
 // these values.  Special values:
 // PV_NONE: global option.
@@ -498,6 +497,9 @@ static struct vimoption options[] =
     {"bioskey",	    "biosk",P_BOOL|P_VI_DEF,
 			    (char_u *)NULL, PV_NONE, NULL, NULL,
 			    {(char_u *)TRUE, (char_u *)0L} SCTX_INIT},
+    {"borderchars", "boc",  P_STRING|P_VI_DEF|P_COMMA|P_NODUP,
+			    (char_u *)&p_pbc, PV_NONE, did_set_borderchars, NULL,
+			    {(char_u *)"", (char_u *)0L} SCTX_INIT},
     {"bomb",	    NULL,   P_BOOL|P_NO_MKRC|P_VI_DEF|P_RSTAT,
 			    (char_u *)&p_bomb, PV_BOMB,
 			    did_set_eof_eol_fixeol_bomb, NULL,

@@ -16,6 +16,7 @@
 //
 // Option Flags
 //
+#include "vim.h"
 #define P_BOOL		0x01	// the option is boolean
 #define P_NUM		0x02	// the option is numeric
 #define P_STRING	0x04	// the option is a string
@@ -844,6 +845,9 @@ EXTERN char_u	*p_pydll;	// 'pythondll'
 #endif
 #ifdef FEAT_PYTHON
 EXTERN char_u	*p_pyhome;	// 'pythonhome'
+#endif
+#ifdef FEAT_PROP_POPUP
+EXTERN char_u	*p_pbc;		// 'borderchars'
 #endif
 #if defined(FEAT_PYTHON) || defined(FEAT_PYTHON3)
 EXTERN long	p_pyx;		// 'pyxversion'
