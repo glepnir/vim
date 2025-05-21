@@ -90,11 +90,11 @@ func Test_matchfuzzy()
 
   " camelcase
   call assert_equal(['lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'Cursor', 'CurSearch', 'CursorLine'],
-        \ matchfuzzy(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cur'))
+        \ matchfuzzy(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cu'))
   call assert_equal(['lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'Cursor', 'CurSearch', 'CursorLine'],
-        \ matchfuzzy(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cur', {"camelcase": v:true}))
+        \ matchfuzzy(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cu', {"camelcase": v:true}))
   call assert_equal(['Cursor', 'CurSearch', 'CursorLine', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor'],
-        \ matchfuzzy(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cur', {"camelcase": v:false}))
+        \ matchfuzzy(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cu', {"camelcase": v:false}))
   call assert_equal(['things', 'sThings', 'thisThings'],
         \ matchfuzzy(['things','sThings', 'thisThings'], 'thin', {'camelcase': v:false}))
   call assert_fails("let x = matchfuzzy([], 'foo', {'camelcase': []})", 'E475: Invalid value for argument camelcase')
@@ -108,12 +108,12 @@ endfunc
 
 " Test for the matchfuzzypos() function
 func Test_matchfuzzypos()
-  call assert_equal([['curl', 'world'], [[2,3], [2,3]], [178, 177]], matchfuzzypos(['world', 'curl'], 'rl'))
-  call assert_equal([['curl', 'world'], [[2,3], [2,3]], [178, 177]], matchfuzzypos(['world', 'one', 'curl'], 'rl'))
+  call assert_equal([['curl', 'world'], [[2,3], [2,3]], [218, 217]], matchfuzzypos(['world', 'curl'], 'rl'))
+  call assert_equal([['curl', 'world'], [[2,3], [2,3]], [218, 217]], matchfuzzypos(['world', 'one', 'curl'], 'rl'))
   call assert_equal([['hello', 'hello world hello world'],
-        \ [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]], [500, 382]],
+        \ [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]], [760, 699]],
         \ matchfuzzypos(['hello world hello world', 'hello', 'world'], 'hello'))
-  call assert_equal([['aaaaaaa'], [[0, 1, 2]], [266]], matchfuzzypos(['aaaaaaa'], 'aaa'))
+  call assert_equal([['aaaaaaa'], [[0, 1, 2]], [483]], matchfuzzypos(['aaaaaaa'], 'aaa'))
   call assert_equal([['a  b'], [[0, 3]], [269]], matchfuzzypos(['a  b'], 'a  b'))
   call assert_equal([['a  b'], [[0, 3]], [269]], matchfuzzypos(['a  b'], 'a    b'))
   call assert_equal([['a  b'], [[0]], [137]], matchfuzzypos(['a  b'], '  a  '))
@@ -125,33 +125,33 @@ func Test_matchfuzzypos()
   call assert_equal([[], [], []], matchfuzzypos([], 'abc'))
 
   " match in a long string
-  call assert_equal([[repeat('x', 300) .. 'abc'], [[300, 301, 302]], [-60]],
+  call assert_equal([[repeat('x', 300) .. 'abc'], [[300, 301, 302]], [20]],
         \ matchfuzzypos([repeat('x', 300) .. 'abc'], 'abc'))
 
   " preference for camel case match
-  call assert_equal([['xabcxxaBc'], [[6, 7, 8]], [269]], matchfuzzypos(['xabcxxaBc'], 'abc'))
+  call assert_equal([['xabcxxaBc'], [[6, 7, 8]], [349]], matchfuzzypos(['xabcxxaBc'], 'abc'))
   " preference for match after a separator (_ or space)
-  call assert_equal([['xabx_ab'], [[5, 6]], [195]], matchfuzzypos(['xabx_ab'], 'ab'))
+  call assert_equal([['xabx_ab'], [[5, 6]], [235]], matchfuzzypos(['xabx_ab'], 'ab'))
   " preference for leading letter match
-  call assert_equal([['abcxabc'], [[0, 1]], [200]], matchfuzzypos(['abcxabc'], 'ab'))
+  call assert_equal([['abcxabc'], [[0, 1]], [240]], matchfuzzypos(['abcxabc'], 'ab'))
   " preference for sequential match
-  call assert_equal([['aobncedone'], [[7, 8, 9]], [233]], matchfuzzypos(['aobncedone'], 'one'))
+  call assert_equal([['aobncedone'], [[7, 8, 9]], [313]], matchfuzzypos(['aobncedone'], 'one'))
   " best recursive match
-  call assert_equal([['xoone'], [[2, 3, 4]], [243]], matchfuzzypos(['xoone'], 'one'))
+  call assert_equal([['xoone'], [[2, 3, 4]], [323]], matchfuzzypos(['xoone'], 'one'))
 
   " match multiple words (separated by space)
-  call assert_equal([['foo bar baz'], [[8, 9, 10, 0, 1, 2]], [519]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('baz foo'))
+  call assert_equal([['foo bar baz'], [[8, 9, 10, 0, 1, 2]], [816]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('baz foo'))
   call assert_equal([[], [], []], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('baz foo', {'matchseq': 1}))
-  call assert_equal([['foo bar baz'], [[0, 1, 2, 8, 9, 10]], [519]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo baz'))
-  call assert_equal([['foo bar baz'], [[0, 1, 2, 3, 4, 5, 10]], [476]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo baz', {'matchseq': 1}))
+  call assert_equal([['foo bar baz'], [[0, 1, 2, 8, 9, 10]], [816]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo baz'))
+  call assert_equal([['foo bar baz'], [[0, 1, 2, 3, 4, 5, 10]], [843]], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('foo baz', {'matchseq': 1}))
   call assert_equal([[], [], []], ['foo bar baz', 'foo', 'foo bar', 'baz bar']->matchfuzzypos('one two'))
   call assert_equal([[], [], []], ['foo bar']->matchfuzzypos(" \t "))
-  call assert_equal([['grace'], [[1, 2, 3, 4, 2, 3, 4, 0, 1, 2, 3, 4]], [1057]], ['grace']->matchfuzzypos('race ace grace'))
+  call assert_equal([['grace'], [[1, 2, 3, 4, 2, 3, 4, 0, 1, 2, 3, 4]], [1606]], ['grace']->matchfuzzypos('race ace grace'))
 
   let l = [{'id' : 5, 'val' : 'crayon'}, {'id' : 6, 'val' : 'camera'}]
-  call assert_equal([[{'id' : 6, 'val' : 'camera'}], [[0, 1, 2]], [267]],
+  call assert_equal([[{'id' : 6, 'val' : 'camera'}], [[0, 1, 2]], [484]],
         \ matchfuzzypos(l, 'cam', {'text_cb' : {v -> v.val}}))
-  call assert_equal([[{'id' : 6, 'val' : 'camera'}], [[0, 1, 2]], [267]],
+  call assert_equal([[{'id' : 6, 'val' : 'camera'}], [[0, 1, 2]], [484]],
         \ matchfuzzypos(l, 'cam', {'key' : 'val'}))
   call assert_equal([[], [], []], matchfuzzypos(l, 'day', {'text_cb' : {v -> v.val}}))
   call assert_equal([[], [], []], matchfuzzypos(l, 'day', {'key' : 'val'}))
@@ -168,8 +168,8 @@ func Test_matchfuzzypos()
   call assert_fails("let x = matchfuzzypos(l, 'foo', {'text_cb' : test_null_function()})", 'E475:')
 
   " case match
-  call assert_equal([['Match', 'match'], [[0, 1], [0, 1]], [202, 177]], matchfuzzypos(['match', 'Match'], 'Ma'))
-  call assert_equal([['match', 'Match'], [[0, 1], [0, 1]], [202, 177]], matchfuzzypos(['Match', 'match'], 'ma'))
+  call assert_equal([['Match', 'match'], [[0, 1], [0, 1]], [242, 217]], matchfuzzypos(['match', 'Match'], 'Ma'))
+  call assert_equal([['match', 'Match'], [[0, 1], [0, 1]], [242, 217]], matchfuzzypos(['Match', 'match'], 'ma'))
   " CamelCase has high weight even case match
   call assert_equal(['MyTestCase', 'mytestcase'], matchfuzzy(['mytestcase', 'MyTestCase'], 'mtc'))
   call assert_equal(['MyTestCase', 'mytestcase'], matchfuzzy(['MyTestCase', 'mytestcase'], 'mtc'))
@@ -184,13 +184,16 @@ func Test_matchfuzzypos()
 
   " camelcase
   call assert_equal([['lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'Cursor', 'CurSearch', 'CursorLine'], [[1, 2, 3], [2, 3, 4], [2, 3, 4], [6, 7, 8], [0, 1, 2], [0, 1, 2], [0, 1, 2]], [318, 311, 308, 303, 267, 264, 263]],
-        \ matchfuzzypos(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cur'))
+        \ matchfuzzypos(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cu'))
   call assert_equal([['lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'Cursor', 'CurSearch', 'CursorLine'], [[1, 2, 3], [2, 3, 4], [2, 3, 4], [6, 7, 8], [0, 1, 2], [0, 1, 2], [0, 1, 2]], [318, 311, 308, 303, 267, 264, 263]],
-        \ matchfuzzypos(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cur', {"camelcase": v:true}))
+        \ matchfuzzypos(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cu', {"camelcase": v:true}))
   call assert_equal([['Cursor', 'CurSearch', 'CursorLine', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor'], [[0, 1, 2], [0, 1, 2], [0, 1, 2], [1, 2, 3], [2, 3, 4], [2, 3, 4], [6, 7, 8]], [267, 264, 263, 246, 239, 236, 231]],
-        \ matchfuzzypos(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cur', {"camelcase": v:false}))
-  call assert_equal([['things', 'sThings', 'thisThings'], [[0, 1, 2, 3], [1, 2, 3, 4], [0, 1, 2, 7]], [333, 287, 279]],
+        \ matchfuzzypos(['Cursor', 'lCursor', 'shCurlyIn', 'shCurlyError', 'TracesCursor', 'CurSearch', 'CursorLine'], 'Cu', {"camelcase": v:false}))
+  call assert_equal([['things', 'sThings', 'thisThings'], [[0, 1, 2, 3], [1, 2, 3, 4], [0, 1, 2, 7]], [600, 496, 496]],
         \ matchfuzzypos(['things','sThings', 'thisThings'], 'thin', {'camelcase': v:false}))
+
+  call assert_equal([['things', 'sThings', 'thisThings'], [[0, 1, 2, 3], [1, 2, 3, 4], [0, 1, 2, 7]], [600, 496, 496]],
+        \ matchfuzzypos(['things','thisThings', 'sThings'], 'thin', {'camelcase': v:false}))
   call assert_fails("let x = matchfuzzypos([], 'foo', {'camelcase': []})", 'E475: Invalid value for argument camelcase')
 endfunc
 
@@ -235,17 +238,17 @@ endfunc
 " Test for matchfuzzypos() with multibyte characters
 func Test_matchfuzzypos_mbyte()
   CheckFeature multi_lang
-  call assert_equal([['こんにちは世界'], [[0, 1, 2, 3, 4]], [273]],
+  call assert_equal([['こんにちは世界'], [[0, 1, 2, 3, 4]], [590]],
         \ matchfuzzypos(['こんにちは世界'], 'こんにちは'))
   call assert_equal([['ンヹㄇヺヴ'], [[1, 3]], [88]], matchfuzzypos(['ンヹㄇヺヴ'], 'ヹヺ'))
   " reverse the order of characters
   call assert_equal([[], [], []], matchfuzzypos(['ンヹㄇヺヴ'], 'ヺヹ'))
-  call assert_equal([['αβΩxxx', 'xαxβxΩx'], [[0, 1, 2], [1, 3, 5]], [252, 143]],
+  call assert_equal([['αβΩxxx', 'xαxβxΩx'], [[0, 1, 2], [1, 3, 5]], [469, 143]],
         \ matchfuzzypos(['αβΩxxx', 'xαxβxΩx'], 'αβΩ'))
   call assert_equal([['ππbbππ', 'πππbbbπππ', 'ππππbbbbππππ', 'πbπ'],
-        \ [[0, 1], [0, 1], [0, 1], [0, 2]], [176, 173, 170, 135]],
+        \ [[0, 1], [0, 1], [0, 1], [0, 2]], [216, 213, 210, 135]],
         \ matchfuzzypos(['πbπ', 'ππbbππ', 'πππbbbπππ', 'ππππbbbbππππ'], 'ππ'))
-  call assert_equal([['ααααααα'], [[0, 1, 2]], [216]],
+  call assert_equal([['ααααααα'], [[0, 1, 2]], [433]],
         \ matchfuzzypos(['ααααααα'], 'ααα'))
 
   call assert_equal([[], [], []], matchfuzzypos(['ンヹㄇ', 'ŗŝţ'], 'ﬀﬁﬂ'))
@@ -254,22 +257,22 @@ func Test_matchfuzzypos_mbyte()
   call assert_equal([[], [], []], matchfuzzypos([repeat('✓', 300)], repeat('✓', 257)))
 
   " match multiple words (separated by space)
-  call assert_equal([['세 마리의 작은 돼지'], [[9, 10, 2, 3, 4]], [328]], ['세 마리의 작은 돼지', '마리의', '마리의 작은', '작은 돼지']->matchfuzzypos('돼지 마리의'))
+  call assert_equal([['세 마리의 작은 돼지'], [[9, 10, 2, 3, 4]], [448]], ['세 마리의 작은 돼지', '마리의', '마리의 작은', '작은 돼지']->matchfuzzypos('돼지 마리의'))
   call assert_equal([[], [], []], ['세 마리의 작은 돼지', '마리의', '마리의 작은', '작은 돼지']->matchfuzzypos('파란 하늘'))
 
   " match in a long string
-  call assert_equal([[repeat('ぶ', 300) .. 'ẼẼẼ'], [[300, 301, 302]], [-110]],
+  call assert_equal([[repeat('ぶ', 300) .. 'ẼẼẼ'], [[300, 301, 302]], [-30]],
         \ matchfuzzypos([repeat('ぶ', 300) .. 'ẼẼẼ'], 'ẼẼẼ'))
   " preference for camel case match
-  call assert_equal([['xѳѵҁxxѳѴҁ'], [[6, 7, 8]], [219]], matchfuzzypos(['xѳѵҁxxѳѴҁ'], 'ѳѵҁ'))
+  call assert_equal([['xѳѵҁxxѳѴҁ'], [[6, 7, 8]], [299]], matchfuzzypos(['xѳѵҁxxѳѴҁ'], 'ѳѵҁ'))
   " preference for match after a separator (_ or space)
-  call assert_equal([['xちだx_ちだ'], [[5, 6]], [145]], matchfuzzypos(['xちだx_ちだ'], 'ちだ'))
+  call assert_equal([['xちだx_ちだ'], [[5, 6]], [185]], matchfuzzypos(['xちだx_ちだ'], 'ちだ'))
   " preference for leading letter match
-  call assert_equal([['ѳѵҁxѳѵҁ'], [[0, 1]], [150]], matchfuzzypos(['ѳѵҁxѳѵҁ'], 'ѳѵ'))
+  call assert_equal([['ѳѵҁxѳѵҁ'], [[0, 1]], [190]], matchfuzzypos(['ѳѵҁxѳѵҁ'], 'ѳѵ'))
   " preference for sequential match
-  call assert_equal([['aンbヹcㄇdンヹㄇ'], [[7, 8, 9]], [158]], matchfuzzypos(['aンbヹcㄇdンヹㄇ'], 'ンヹㄇ'))
+  call assert_equal([['aンbヹcㄇdンヹㄇ'], [[7, 8, 9]], [238]], matchfuzzypos(['aンbヹcㄇdンヹㄇ'], 'ンヹㄇ'))
   " best recursive match
-  call assert_equal([['xффйд'], [[2, 3, 4]], [168]], matchfuzzypos(['xффйд'], 'фйд'))
+  call assert_equal([['xффйд'], [[2, 3, 4]], [248]], matchfuzzypos(['xффйд'], 'фйд'))
 endfunc
 
 " Test for matchfuzzy() with limit
