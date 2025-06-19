@@ -54,6 +54,10 @@ static void fuzzy_match_str_sort(fuzmatch_str_T *fm, int sz);
 static int fuzzy_match_func_compare(const void *s1, const void *s2);
 static void fuzzy_match_func_sort(fuzmatch_str_T *fm, int sz);
 
+#if defined(PLATFORM_X86) || defined(PLATFORM_ARM_NEON)
+static int frizbee_match_str(char_u *str, char_u *pat);
+#endif
+
 #define SEARCH_STAT_DEF_TIMEOUT 40L
 #define SEARCH_STAT_DEF_MAX_COUNT 99
 #define SEARCH_STAT_BUF_LEN 12
@@ -5177,6 +5181,11 @@ fuzzy_match_func_sort(fuzmatch_str_T *fm, int sz)
     int
 fuzzy_match_str(char_u *str, char_u *pat)
 {
+
+#if defined(PLATFORM_X86) || defined(PLATFORM_ARM_NEON)
+    return frizbee_match_str(str, pat);
+#endif
+
     int		score = 0;
     int_u	matchpos[MAX_FUZZY_MATCHES];
 
@@ -5476,3 +5485,408 @@ fuzzymatches_to_strmatches(
 
     return OK;
 }
+
+#if defined(PLATFORM_X86) || defined(PLATFORM_ARM_NEON)
+
+// Frizbee scoring constants - based on original Rust implementation
+#define FRIZBEE_MATCH_SCORE            16
+#define FRIZBEE_MISMATCH_PENALTY       1     // Note: positive value, used in subtraction
+#define FRIZBEE_GAP_OPEN_PENALTY       3     // Note: positive value, used in subtraction
+#define FRIZBEE_GAP_EXTEND_PENALTY     1
+
+// Frizbee bonuses
+#define FRIZBEE_PREFIX_BONUS           15    // First character of haystack
+#define FRIZBEE_DELIMITER_BONUS        30    // After delimiter character
+#define FRIZBEE_CAPITALIZATION_BONUS   30    // Capital after lowercase
+#define FRIZBEE_MATCHING_CASE_BONUS    10    // Case match bonus
+#define FRIZBEE_EXACT_MATCH_BONUS      50    // Exact needle match
+
+// Algorithm limits
+#define FRIZBEE_MAX_MATCHES            256
+#define FRIZBEE_SCORE_MIN              0     // Original uses 0 as minimum, not negative
+
+// Configuration flags
+#define FRIZBEE_REQUIRE_ALL_CHARS      1     // Set to 1 to require all needle chars to match (strict)
+                                             // Set to 0 for original frizbee behavior (allows partial matches)
+
+/*
+ * Frizbee match result structure
+ */
+typedef struct {
+    int         score;
+    int         start_idx;
+    int         end_idx;
+    int         match_count;
+    int_u       matches[FRIZBEE_MAX_MATCHES];
+} frizbee_result_T;
+
+/*
+ * Frizbee scoring context
+ */
+typedef struct {
+    char_u      *needle;
+    char_u      *haystack;
+    int         needle_len;
+    int         haystack_len;
+    int         case_sensitive;
+    int16_t     *score_matrix;
+
+    frizbee_result_T result;
+} frizbee_T;
+
+// Function declarations
+static int frizbee_smith_waterman(frizbee_T *fz);
+static int frizbee_bonus_for_position(frizbee_T *fz, int haystack_idx, int needle_idx);
+static void frizbee_backtrack_alignment(frizbee_T *fz, int end_i, int end_j);
+
+/*
+ * Calculate bonus points for character match at specific position
+ * Implements frizbee's exact bonus system from the original
+ */
+    static int
+frizbee_bonus_for_position(frizbee_T *fz, int haystack_idx, int needle_idx)
+{
+    int	    bonus = 0;
+    char_u  curr_char = fz->haystack[haystack_idx];
+    char_u  needle_char = fz->needle[needle_idx];
+
+    // PREFIX_BONUS: First character of haystack gets extra points
+    if (haystack_idx == 0)
+	bonus += FRIZBEE_PREFIX_BONUS;
+
+    // DELIMITER_BONUS: Character after delimiter gets extra points
+    if (haystack_idx > 0)
+    {
+	char_u prev_char = fz->haystack[haystack_idx - 1];
+
+	// Check for delimiter characters - matches original delimiter list
+	if (prev_char == '_' || prev_char == '-' || prev_char == '.' ||
+	    prev_char == ' ' || prev_char == '\t' || prev_char == '/' ||
+	    prev_char == '\\' || prev_char == ':' || prev_char == ',')
+	{
+	    bonus += FRIZBEE_DELIMITER_BONUS;
+	}
+	// CAPITALIZATION_BONUS: Capital letter after lowercase
+	else if (vim_islower(prev_char) && vim_isupper(curr_char))
+	{
+	    bonus += FRIZBEE_CAPITALIZATION_BONUS;
+	}
+    }
+
+    // MATCHING_CASE_BONUS: Exact case match when not case sensitive
+    if (!fz->case_sensitive && curr_char == needle_char)
+	bonus += FRIZBEE_MATCHING_CASE_BONUS;
+
+    return bonus;
+}
+
+/*
+ * Core Smith-Waterman algorithm implementation
+ * Based on the original frizbee Rust code algorithm
+ */
+    static int
+frizbee_smith_waterman(frizbee_T *fz)
+{
+    int	    matrix_size = (fz->needle_len + 1) * (fz->haystack_len + 1);
+
+    // Allocate scoring matrix
+    fz->score_matrix = (int16_t *)alloc_clear(matrix_size * sizeof(int16_t));
+    if (fz->score_matrix == NULL)
+	return FRIZBEE_SCORE_MIN;
+
+    int all_time_max_score = 0;  // Track global maximum score across entire matrix
+    int max_i = 0, max_j = 0;    // Position of maximum score for backtracking
+    int matrix_width = fz->haystack_len + 1;
+
+    // Fill Smith-Waterman matrix row by row (needle chars)
+    for (int i = 1; i <= fz->needle_len; i++)
+    {
+	char_u	needle_char = fz->case_sensitive
+			    ? fz->needle[i-1] : vim_tolower(fz->needle[i-1]);
+	int	up_score = 0;
+	int	up_gap_penalty_mask = 1;
+	int	left_gap_penalty_mask = 1;
+	int	delimiter_bonus_enabled = 0;
+
+	// Fill each column (haystack chars) for this row
+	for (int j = 1; j <= fz->haystack_len; j++)
+	{
+	    char_u haystack_char = fz->case_sensitive
+			? fz->haystack[j-1] : vim_tolower(fz->haystack[j-1]);
+
+	    // Matrix indices
+	    int current_idx = i * matrix_width + j;
+	    int diag_idx = (i-1) * matrix_width + (j-1);
+	    int up_idx = (i-1) * matrix_width + j;
+	    int left_idx = i * matrix_width + (j-1);
+
+	    // Check if this is a prefix match (first haystack position)
+	    int is_prefix = j == 1;
+
+	    // Calculate diagonal score (match/mismatch)
+	    int diag_score;
+	    if (needle_char == haystack_char)
+	    {
+		// Character match case
+		int match_score = is_prefix ?
+		    (FRIZBEE_MATCH_SCORE + FRIZBEE_PREFIX_BONUS) :
+		    FRIZBEE_MATCH_SCORE;
+
+		diag_score = fz->score_matrix[diag_idx] + match_score;
+
+		// Add position-based bonuses (but avoid double-counting prefix bonus)
+		if (!is_prefix)
+		{
+		    int bonus = frizbee_bonus_for_position(fz, j-1, i-1);
+		    diag_score += bonus;
+		}
+
+		// Case matching bonus
+		if (!fz->case_sensitive && fz->needle[i-1] == fz->haystack[j-1])
+		    diag_score += FRIZBEE_MATCHING_CASE_BONUS;
+	    }
+	    else
+	    {
+		// Character mismatch case - use saturating subtraction
+		diag_score = fz->score_matrix[diag_idx];
+		if (diag_score >= FRIZBEE_MISMATCH_PENALTY)
+		    diag_score -= FRIZBEE_MISMATCH_PENALTY;
+		else
+		    diag_score = 0;
+	    }
+
+	    // Calculate gap scores (insertions/deletions)
+	    int up_gap_penalty = up_gap_penalty_mask ? FRIZBEE_GAP_OPEN_PENALTY : FRIZBEE_GAP_EXTEND_PENALTY;
+	    int up_score_calc = (up_score >= up_gap_penalty) ? (up_score - up_gap_penalty) : 0;
+
+	    int left_score = fz->score_matrix[left_idx];
+	    int left_gap_penalty = left_gap_penalty_mask ? FRIZBEE_GAP_OPEN_PENALTY : FRIZBEE_GAP_EXTEND_PENALTY;
+	    int left_score_calc = (left_score >= left_gap_penalty) ? (left_score - left_gap_penalty) : 0;
+
+	    // Take maximum score (Smith-Waterman local alignment property)
+	    int max_score = diag_score;
+	    if (up_score_calc > max_score)
+		max_score = up_score_calc;
+	    if (left_score_calc > max_score)
+		max_score = left_score_calc;
+
+	    // Update gap penalty masks for next iteration
+	    int diag_mask = (max_score == diag_score);
+	    up_gap_penalty_mask = (max_score != up_score_calc) || diag_mask;
+	    left_gap_penalty_mask = (max_score != left_score_calc) || diag_mask;
+
+	    // Update state for next column
+	    up_score = max_score;
+	    fz->score_matrix[current_idx] = (int16_t)max_score;
+
+	    // Track global maximum score and its position
+	    if (max_score > all_time_max_score)
+	    {
+		all_time_max_score = max_score;
+		max_i = i;
+		max_j = j;
+	    }
+
+	    // Update delimiter bonus state (following original logic)
+	    char_u haystack_orig = fz->haystack[j-1];
+	    int is_delimiter = (haystack_orig == '_' || haystack_orig == '-' ||
+			       haystack_orig == '.' || haystack_orig == ' ' ||
+			       haystack_orig == '\t' || haystack_orig == '/' ||
+			       haystack_orig == '\\' || haystack_orig == ':' ||
+			       haystack_orig == ',');
+	    if (!is_delimiter)
+		delimiter_bonus_enabled = 1;
+	}
+    }
+
+    // Apply exact match bonus if strings are identical
+    if (fz->needle_len == fz->haystack_len &&
+	STRNCMP(fz->needle, fz->haystack, fz->needle_len) == 0)
+    {
+	all_time_max_score += FRIZBEE_EXACT_MATCH_BONUS;
+    }
+
+    // Backtrack to find match positions only if we have a positive score
+    if (all_time_max_score > 0)
+	frizbee_backtrack_alignment(fz, max_i, max_j);
+
+#if FRIZBEE_REQUIRE_ALL_CHARS
+    // Option: Require all needle characters to have matches
+    // This is useful for fuzzy search where partial matches are not desired
+    if (fz->result.match_count < fz->needle_len)
+    {
+	fz->result.score = 0;
+	return 0;
+    }
+#endif
+
+    fz->result.score = all_time_max_score;
+    return all_time_max_score;
+}
+
+/*
+ * Backtrack through Smith-Waterman matrix to find character match positions
+ * This reconstructs the optimal alignment path
+ */
+static void
+frizbee_backtrack_alignment(frizbee_T *fz, int end_i, int end_j)
+{
+    int	    i = end_i;
+    int	    j = end_j;
+    int	    match_count = 0;
+    int_u   temp_matches[FRIZBEE_MAX_MATCHES];
+    int	    matrix_width = fz->haystack_len + 1;
+
+    // Trace back from maximum score position to reconstruct alignment
+    while (i > 0 && j > 0 && fz->score_matrix[i * matrix_width + j] > 0)
+    {
+	char_u needle_char = fz->case_sensitive
+			    ? fz->needle[i-1] : vim_tolower(fz->needle[i-1]);
+	char_u haystack_char = fz->case_sensitive
+			    ? fz->haystack[j-1] : vim_tolower(fz->haystack[j-1]);
+
+	if (needle_char == haystack_char)
+	{
+	    // Found a character match - record the haystack position
+	    if (match_count < FRIZBEE_MAX_MATCHES)
+		temp_matches[match_count++] = j - 1;  // Convert to 0-based indexing
+	    i--;
+	    j--;
+	}
+	else
+	{
+	    // Follow the path that led to current score (gap in needle or haystack)
+	    int current_score = fz->score_matrix[i * matrix_width + j];
+	    int up_score = (i > 0) ? fz->score_matrix[(i-1) * matrix_width + j] : 0;
+	    int left_score = (j > 0) ? fz->score_matrix[i * matrix_width + (j-1)] : 0;
+
+	    // Move in direction of highest score
+	    if (up_score >= left_score)
+		i--; // Gap in haystack
+	    else
+		j--; // Gap in needle
+	}
+    }
+
+    // Reverse the matches array since backtracking gives positions in reverse order
+    fz->result.match_count = match_count;
+    for (int k = 0; k < match_count; k++)
+	fz->result.matches[k] = temp_matches[match_count - 1 - k];
+}
+
+/*
+ * Main frizbee matching function - drop-in replacement for vim's fuzzy_match
+ * Returns number of matches found, sets *outScore to total score
+ */
+int
+frizbee_match(
+    char_u      *str,           // haystack string to search in
+    char_u      *pat_arg,       // needle pattern to search for
+    int         matchseq,       // if TRUE, match sequence of words
+    int         *outScore,      // output: total match score
+    int_u       *matches,       // output: array of match positions
+    int         maxMatches,     // maximum number of matches to return
+    int         camelcase)      // unused - frizbee handles capitalization internally
+{
+    if (str == NULL || pat_arg == NULL || *pat_arg == NUL)
+    {
+	*outScore = FRIZBEE_SCORE_MIN;
+	return FALSE;
+    }
+
+    frizbee_T	fz;
+    char_u	*pat_copy = NULL;
+    int		result = FALSE;
+    int		total_score = 0;
+    int		total_matches = 0;
+
+    // Initialize frizbee context
+    CLEAR_FIELD(fz);
+    fz.haystack = str;
+    fz.haystack_len = (int)STRLEN(str);
+    fz.case_sensitive = FALSE;  // Follow vim's default behavior
+
+    // Process pattern (supports multi-word patterns separated by whitespace)
+    pat_copy = vim_strsave(pat_arg);
+    if (pat_copy == NULL)
+    {
+	*outScore = FRIZBEE_SCORE_MIN;
+	return FALSE;
+    }
+
+    char_u *pat = pat_copy;
+    char_u *p = pat;
+
+    // Process each word in the pattern
+    while (TRUE)
+    {
+	// Skip leading whitespace
+	p = skipwhite(p);
+	if (*p == NUL)
+	    break;
+
+	// Extract current word
+	pat = p;
+	while (*p != NUL && !VIM_ISWHITE(PTR2CHAR(p)))
+	{
+	    if (has_mbyte)
+		MB_PTR_ADV(p);
+	    else
+		++p;
+	}
+
+	int is_last = (*p == NUL);
+	*p = NUL;
+
+	// Set up frizbee context for this word
+	fz.needle = pat;
+	fz.needle_len = (int)STRLEN(pat);
+
+	// Run Smith-Waterman algorithm (no prefilter - matches original)
+	int score = frizbee_smith_waterman(&fz);
+
+	if (score <= 0)
+	{
+	    // This word had no valid matches - fail entire pattern
+	    result = FALSE;
+	    break;
+	}
+
+	// Accumulate results from this word
+	total_score += score;
+	for (int i = 0; i < fz.result.match_count && total_matches < maxMatches; i++)
+	    matches[total_matches++] = fz.result.matches[i];
+
+	result = TRUE;
+
+	// Clean up matrix memory
+	vim_free(fz.score_matrix);
+	fz.score_matrix = NULL;
+
+	if (is_last || matchseq)
+	    break;
+
+	++p;
+    }
+
+    vim_free(pat_copy);
+
+    *outScore = result ? total_score : FRIZBEE_SCORE_MIN;
+    return result ? total_matches : 0;
+}
+
+/*
+ * Simple wrapper for fuzzy_match_str - returns just the score
+ */
+static int
+frizbee_match_str(char_u *str, char_u *pat)
+{
+    int	    score = 0;
+    int_u   matches[FRIZBEE_MAX_MATCHES];
+    int	    match_count = frizbee_match(str, pat, TRUE, &score, matches,
+						    FRIZBEE_MAX_MATCHES, 0);
+    // Return score only if we found matches
+    return match_count > 0 ? score : 0;
+}
+
+#endif

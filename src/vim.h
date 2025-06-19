@@ -540,6 +540,24 @@ typedef long long vimlong_T;
 # include <sodium.h>
 #endif
 
+// Platform detection
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+    #define PLATFORM_X86 1
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+    #define PLATFORM_ARM_NEON 1
+#endif
+
+// Conservative SIMD headers (only guaranteed instruction sets)
+#ifdef PLATFORM_X86
+# if defined(__SSE2__) || (defined(_MSC_VER) && (defined(_M_X64) || _M_IX86_FP >= 2))
+#  include <emmintrin.h>  // SSE2 only - guaranteed on x64
+# endif
+#endif
+
+#ifdef PLATFORM_ARM_NEON
+# include <arm_neon.h>     // NEON for ARM64
+#endif
+
 // ================ end of the header file puzzle ===============
 
 /*
