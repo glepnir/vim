@@ -1148,7 +1148,7 @@ ins_compl_longest_match(compl_T *match)
 {
     char_u	*p, *s;
     int		c1, c2;
-    int		had_match;
+    int		had_match = FALSE;
 
     if (compl_leader.string == NULL)
     {
@@ -1158,12 +1158,12 @@ ins_compl_longest_match(compl_T *match)
 	    return;
 
 	compl_leader.length = match->cp_str.length;
-	had_match = (curwin->w_cursor.col > compl_col);
+	had_match = (curwin->w_cursor.col > compl_col) ? TRUE : FALSE;
 	ins_compl_longest_insert(compl_leader.string);
 
 	// When the match isn't there (to avoid matching itself) remove it
 	// again after redrawing.
-	if (!had_match)
+	if (had_match == FALSE)
 	    ins_compl_delete();
 	compl_used_match = FALSE;
 
@@ -1206,12 +1206,12 @@ ins_compl_longest_match(compl_T *match)
 	*p = NUL;
 	compl_leader.length = (size_t)(p - compl_leader.string);
 
-	had_match = (curwin->w_cursor.col > compl_col);
+	had_match = (curwin->w_cursor.col > compl_col) ? TRUE : FALSE;
 	ins_compl_longest_insert(compl_leader.string);
 
 	// When the match isn't there (to avoid matching itself) remove it
 	// again after redrawing.
-	if (!had_match)
+	if (had_match == FALSE)
 	    ins_compl_delete();
     }
 
@@ -2990,7 +2990,10 @@ ins_compl_stop(int c, int prev_mode, int retval)
 	size_t	plen = 0;
 
 	ins_compl_delete();
-	if (compl_leader.string != NULL)
+	if (compl_leader.string != NULL
+	    && compl_first_match != NULL
+	    && match_at_original_text(compl_first_match)
+	    && STRCMP(compl_first_match->cp_str.string, compl_leader.string) == 0)
 	{
 	    p = compl_leader.string;
 	    plen = compl_leader.length;

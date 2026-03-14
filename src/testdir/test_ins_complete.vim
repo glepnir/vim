@@ -6287,4 +6287,16 @@ func Test_ins_register_preinsert_autocomplete()
   delfunc TestOmni
 endfunc
 
+func Test_ins_cancel_restore_when_longest()
+  set cot=menu,longest
+  new
+  call feedkeys("itest\<CR>\<C-N>\<Esc>", 'tx')
+  call assert_equal("test", getline("."))
+
+  call feedkeys("S\<C-N>\<C-E>\<ESC>", 'tx')
+  call assert_equal("", getline("."))
+  bw!
+  set cot&
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab nofoldenable
