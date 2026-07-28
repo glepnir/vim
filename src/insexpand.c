@@ -116,12 +116,14 @@ struct compl_S
 };
 
 // values for cp_flags
-#define CP_ORIGINAL_TEXT   1	// the original text when the expansion begun
+#define CP_ORIGINAL_TEXT    1	// the original text when the expansion begun
 #define CP_FREE_FNAME	    2	// cp_fname is allocated
 #define CP_CONT_S_IPOS	    4	// use CONT_S_IPOS for compl_cont_status
 #define CP_EQUAL	    8	// ins_compl_equal() always returns TRUE
 #define CP_ICASE	    16	// ins_compl_equal() ignores case
 #define CP_FAST	    32	// use fast_breakcheck instead of ui_breakcheck
+#define CP_DUP		    64	// "dup" was set, not deduplicated
+#define CP_EMPTY	    128	// "empty" was set, kept with an empty word
 
 /*
  * All the current matches are stored in a list.
@@ -3787,9 +3789,17 @@ ins_compl_add_tv(typval_T *tv, int dir, int fast)
 				  && dict_get_number(tv->vval.v_dict, "icase"))
 	    flags |= CP_ICASE;
 	if (dict_get_string(tv->vval.v_dict, "dup", FALSE) != NULL)
+	{
 	    dup = dict_get_number(tv->vval.v_dict, "dup");
+	    if (dup)
+		flags |= CP_DUP;
+	}
 	if (dict_get_string(tv->vval.v_dict, "empty", FALSE) != NULL)
+	{
 	    empty = dict_get_number(tv->vval.v_dict, "empty");
+	    if (empty)
+		flags |= CP_EMPTY;
+	}
 	if (dict_get_string(tv->vval.v_dict, "equal", FALSE) != NULL
 				  && dict_get_number(tv->vval.v_dict, "equal"))
 	    flags |= CP_EQUAL;
@@ -4076,6 +4086,14 @@ fill_complete_info_dict(dict_T *di, compl_T *match, int add_match)
     dict_add_string(di, "info", match->cp_text[CPT_INFO]);
     if (add_match)
 	dict_add_bool(di, "match", match->cp_in_match_array);
+    if (match->cp_flags & CP_ICASE)
+	dict_add_number(di, "icase", 1);
+    if (match->cp_flags & CP_EQUAL)
+	dict_add_number(di, "equal", 1);
+    if (match->cp_flags & CP_DUP)
+	dict_add_number(di, "dup", 1);
+    if (match->cp_flags & CP_EMPTY)
+	dict_add_number(di, "empty", 1);
     if (match->cp_user_data.v_type == VAR_UNKNOWN)
 	// Add an empty string for backwards compatibility
 	dict_add_string_len(di, "user_data", (char_u *)"", 0);

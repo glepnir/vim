@@ -6634,4 +6634,29 @@ func Test_complete_check_mapped_typed_key()
   unlet g:compl_iterations
 endfunc
 
+func Test_complete_info_roundtrip()
+  new
+  inoremap <buffer> <F5> <C-R>=Complete()<CR>
+  func Complete()
+    call complete(col('.'), [
+          \ #{word: 'foo', icase: 1, dup: 1},
+          \ #{word: 'foo', equal: 1},
+          \ #{word: '', empty: 1},
+          \ ])
+    return ''
+  endfunc
+
+  call feedkeys("i\<F5>\<C-R>=string(map(complete_info(['items']).items, "
+        \ .. "{_, v -> filter(v, {k -> k =~ 'word\\|icase\\|dup\\|equal\\|empty'})}))"
+        \ .. "\<CR>\<Esc>", 'tx')
+  " 'foo' appears twice: dup kept it, and the empty word survived
+  call assert_match("'dup': 1", getline(1))
+  call assert_match("'icase': 1", getline(1))
+  call assert_match("'equal': 1", getline(1))
+  call assert_match("'empty': 1", getline(1))
+
+  delfunc Complete
+  bwipe!
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab nofoldenable
